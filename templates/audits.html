@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}MicroBase - Historial Fiscal{% endblock %}
+
+{% block content %}
+<div style="flex: 1; padding: 40px; display: flex; flex-direction: column; overflow-y: auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h1 style="font-size: 1.8rem; display: flex; align-items: center; gap: 12px; font-weight: bold;">
+            <i data-lucide="clipboard-list" style="width: 28px; height: 28px; color: var(--primary);"></i>
+            Historial Fiscal y Auditoría
+        </h1>
+        <div style="font-size: 0.9rem; color: var(--text-muted);">
+            Se muestran los últimos 100 movimientos registrados.
+        </div>
+    </div>
+
+    <div style="background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+        <table class="data-table" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">Réf (ID)</th>
+                    <th>Operador / COD</th>
+                    <th>Detalle de la Operación (Facturación)</th>
+                    <th style="text-align: right;">Fecha y Hora</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if audits|length == 0 %}
+                <tr>
+                    <td colspan="4" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        <i data-lucide="inbox" style="width: 48px; height: 48px; opacity: 0.5; margin-bottom: 12px;"></i><br>
+                        Aún no se ha procesado ninguna compra o venta en el sistema.
+                    </td>
+                </tr>
+                {% else %}
+                    {% for a in audits %}
+                    <tr>
+                        <td style="color: var(--text-muted); font-family: monospace;">TKT-{{ a.id }}</td>
+                        <td>
+                            <span class="badge" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px;">
+                                <i data-lucide="user" style="width: 12px; height: 12px; margin-right: 4px;"></i>
+                                {{ a.employee_code or 'Desconocido' }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if 'Venta |' in a.action %}
+                                <span style="color: var(--success); font-weight: bold;">[<i data-lucide="arrow-up-right" style="width: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i>] {{ a.action }}</span>
+                            {% elif 'Compra |' in a.action %}
+                                <span style="color: var(--warning); font-weight: bold;">[<i data-lucide="arrow-down-left" style="width: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i>] {{ a.action }}</span>
+                            {% else %}
+                                {{ a.action }}
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 0.85em; color: var(--text-muted); text-align: right;">
+                            {% if a.timestamp %}
+                                {{ a.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

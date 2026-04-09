@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script>
+    const currentUserRole = "{{ user.role if user else 'empleado' }}";
+</script>
+<header class="top-header">
+    <h1 id="current-table-name">Selecciona un Espacio de Trabajo</h1>
+</header>
+
+<div class="table-container glass-panel" id="table-container" style="display: none;">
+    <div class="table-actions">
+        <!-- 1. Movimientos Button (Visible solo en Inventario) -->
+        <button id="btn-movimientos" class="btn btn-warning" onclick="openMovementPanel()"
+            style="background: var(--warning); color: #000; border: none; display: none;">
+            <i data-lucide="shopping-cart"></i> Movimientos
+        </button>
+
+        <!-- 2. Añadir Columna -->
+        {% if user.role in ['admin', 'manager'] %}
+        <button class="btn btn-primary" onclick="showAddColumnModal()">
+            <i data-lucide="plus-circle"></i> Añadir Columna
+        </button>
+        {% endif %}
+
+        <!-- 3. Crear Producto / Fila -->
+        <button id="btn-create-row" class="btn btn-success" onclick="addRow()">
+            <i data-lucide="plus"></i> Crear Fila
+        </button>
+
+        <!-- 4. Eliminar Tabla -->
+        {% if user.role in ['admin', 'manager'] %}
+        <button class="btn btn-danger" onclick="deleteCurrentTable()"
+            style="background: var(--danger); color: white; border: none;">
+            <i data-lucide="trash-2"></i> Eliminar Tabla
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="table-scroll-area">
+        <table class="data-table" id="data-table">
+            <thead>
+                <tr id="table-head-row">
+                    <!-- Las cabeceras dinámicas van aquí -->
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <!-- Filas dinámicas van aquí -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Welcome Screen if nothing selected -->
+<div id="welcome-screen" class="welcome-screen">
+    <i data-lucide="sparkles" class="welcome-icon"></i>
+    <h2>Gestión de Tablas</h2>
+    <p>Selecciona una tabla en el menú lateral para empezar a administrar o crea una nueva.</p>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Modals -->
+<div class="modal-overlay" id="add-column-modal">
+    <div class="modal glass-panel">
+        <div class="modal-header">
+            <h3>Nueva Columna</h3>
+            <button class="close-btn" onclick="closeModal('add-column-modal')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Nombre de la columna (Campo)</label>
+                <input type="text" id="new-col-name" class="input-neumorphic" placeholder="Ej: Categoría, Estado..." />
+            </div>
+            <div class="form-group">
+                <label>Tipo de dato</label>
+                <select id="new-col-type" class="input-neumorphic">
+                    <option value="text">Texto Libre</option>
+                    <option value="number">Número / Cantidad</option>
+                    <option value="date">Fecha</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('add-column-modal')">Cancelar</button>
+            <button class="btn btn-primary" onclick="submitNewColumn()">Crear Columna</button>
+        </div>
+    </div>
+</div>
+
+<datalist id="clients-sug"></datalist>
+
+<!-- Extra: Side Panel para Movimientos -->
+<div id="movement-panel" class="side-panel">
+    <div class="panel-header">
+        <h2>Registrar Movimiento</h2>
+        <button class="btn-link" onclick="closeMovementPanel()"><i data-lucide="x"></i></button>
+    </div>
+    <div class="panel-body">
+        <div style="margin-bottom: 16px; display: flex; gap: 10px;">
+            {% if user.role != 'bodeguero' %}
+            <label style="flex: 1; padding: 8px; background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: 6px; cursor: pointer; text-align: center;">
+                <input type="radio" name="mov-type" value="Venta" checked onchange="toggleMovementType()"> Venta (Salida)
+            </label>
+            {% endif %}
+            {% if user.role in ['admin', 'manager', 'bodeguero'] %}
+            <label style="flex: 1; padding: 8px; background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: 6px; cursor: pointer; text-align: center;">
+                <input type="radio" name="mov-type" value="Compra" {% if user.role == 'bodeguero' %}checked{% endif %} onchange="toggleMovementType()"> Compra (Ingreso)
+            </label>
+            {% endif %}
+        </div>
+        <div style="margin-bottom: 20px; background: rgba(0,0,0,0.1); padding: 12px; border-radius: 8px;">
+            <label id="lbl-mov-client" style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 6px; font-weight: bold;">
+                <i data-lucide="user" style="width: 12px; margin-right: 4px;"></i> Destinatario / Cliente (Opcional)
+            </label>
+            <input type="text" id="mov-client" list="clients-sug" class="input-neumorphic" placeholder="Selecciona o escribe..." style="width: 100%;">
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+            <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 6px; font-weight: bold;">
+                <i data-lucide="search" style="width: 12px; margin-right: 4px;"></i> Buscar y Agregar al Carrito
+            </label>
+            <input type="search" id="inventory-search" class="input-neumorphic" placeholder="Busca producto por Nombre o COD..." onkeyup="searchInventory()" style="width: 100%; border-color: var(--primary);">
+            <div id="search-results" class="search-results" style="margin-top: 5px;"></div>
+        </div>
+
+        <h3 style="margin-top: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Carrito /
+            Transacción</h3>
+        <div id="cart-items" class="cart-items"></div>
+    </div>
+    <div class="panel-footer" style="background: rgba(0,0,0,0.2);">
+        <div id="cart-financials">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem;">
+                <span>Subtotal:</span>
+                <span id="cart-subtotal">$0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem;">
+                <span>IVA (15%):</span>
+                <span id="cart-iva">$0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 1.2rem; font-weight: bold; color: var(--success);">
+                <span>TOTAL:</span>
+                <span id="cart-total">$0.00</span>
+            </div>
+        </div>
+        <button id="btn-process-mov" class="btn btn-primary btn-block" onclick="processMovement()" style="width: 100%; justify-content: center;">Procesar Factura</button>
+    </div>
+</div>
+{% endblock %}

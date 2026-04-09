@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroBase - Registro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="dark-theme auth-bg">
+    <script>
+        if(localStorage.getItem('theme') === 'light') document.body.classList.remove('dark-theme');
+        else document.body.classList.add('dark-theme');
+    </script>
+    <button onclick="toggleTheme()" class="btn btn-secondary" style="position: absolute; top: 20px; right: 20px; border-radius: 50%; width: 44px; height: 44px; padding: 0; display: flex; justify-content: center; align-items: center;" title="Modo Claro / Oscuro">
+        <i data-lucide="moon"></i>
+    </button>
+    <div class="auth-container">
+        <div class="auth-card glass-panel" style="width: 450px;">
+            <div class="auth-header">
+                <h2>Registro de Usuario</h2>
+            </div>
+            
+            <div id="reg-step-1">
+                <div class="form-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" id="reg-name" class="input-neumorphic" placeholder="Juan Pérez">
+                </div>
+                <div class="form-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="reg-email" class="input-neumorphic" placeholder="nombre@empresa.com">
+                </div>
+                <div class="form-group">
+                    <label>Rol (Temporal para pruebas)</label>
+                    <select id="reg-role" class="input-neumorphic">
+                        <option value="empleado">Empleado</option>
+                        <option value="manager">Jefe / Manager</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary btn-block" style="margin-top:20px;" onclick="checkRegisterEmail()">Continuar</button>
+            </div>
+
+            <div id="reg-step-2" style="display: none;">
+                <p class="auth-subtitle">Ingresa una contraseña segura</p>
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="reg-pass" class="input-neumorphic" placeholder="••••••••">
+                </div>
+                <button class="btn btn-primary btn-block" style="margin-top:20px;" onclick="showConfirmPass()">Siguiente</button>
+                <div class="auth-links" style="margin-top: 12px; text-align: center;">
+                    <button class="btn-link" onclick="backToRegStep(1)">Cambiar Email</button>
+                </div>
+            </div>
+
+            <div id="reg-step-3" style="display: none;">
+                <p class="auth-subtitle">Confirma tu contraseña</p>
+                <div class="form-group">
+                    <label>Confirmar Contraseña</label>
+                    <input type="password" id="reg-confirm" class="input-neumorphic" placeholder="••••••••">
+                </div>
+                <button class="btn btn-primary btn-block" style="margin-top:20px;" onclick="registerUser()">Crear Cuenta</button>
+                <div class="auth-links" style="margin-top: 12px; text-align: center;">
+                    <button class="btn-link" onclick="backToRegStep(2)">Volver atrás</button>
+                </div>
+            </div>
+
+            <div class="auth-footer" style="margin-top:24px;">
+                <p>¿Ya tienes una cuenta? <a href="/login">Inicia sesión</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

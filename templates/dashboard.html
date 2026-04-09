@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="top-header">
+    <h1>Bienvenido, {{ user.full_name.split()[0] if user else 'Usuario' }}</h1>
+    <p style="color: var(--text-muted);">Aquí tienes un resumen rápido y plantillas para empezar.</p>
+</header>
+
+<div class="dashboard-grid">
+    <div class="glass-panel stat-card">
+        <div class="stat-header" style="background-color: var(--primary);">
+            <i data-lucide="package"></i> Gestión de Inventario
+        </div>
+        <div class="stat-body">
+            Revisa existencias, COD y costos.
+        </div>
+    </div>
+    <div class="glass-panel stat-card">
+        <div class="stat-header" style="background-color: var(--success);">
+            <i data-lucide="users"></i> Gestión de Clientes
+        </div>
+        <div class="stat-body">
+            Directorio y tracking de clientes.
+        </div>
+    </div>
+    <div class="glass-panel stat-card">
+        <div class="stat-header" style="background-color: var(--danger);">
+            <i data-lucide="briefcase"></i> Empleados
+        </div>
+        <div class="stat-body">
+            Nómina y personal activo.
+        </div>
+    </div>
+</div>
+
+<h3 style="margin-top: 32px; margin-bottom: 16px; font-weight: 500;">Plantillas Rápidas</h3>
+<div class="template-grid">
+    <div class="glass-panel template-card" onclick="alert('Funcionalidad próximamente')">
+        <div class="template-icon" style="color: var(--success);"><i data-lucide="layout-dashboard"></i></div>
+        <h4>Inventario</h4>
+    </div>
+    <div class="glass-panel template-card" onclick="alert('Funcionalidad próximamente')">
+        <div class="template-icon" style="color: var(--primary);"><i data-lucide="users"></i></div>
+        <h4>CRM Básica</h4>
+    </div>
+    <div class="glass-panel template-card" onclick="alert('Funcionalidad próximamente')">
+        <div class="template-icon" style="color: var(--danger);"><i data-lucide="check-circle"></i></div>
+        <h4>Seguimiento</h4>
+    </div>
+</div>
+{% endblock %}

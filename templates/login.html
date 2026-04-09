@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroBase - Iniciar Sesión</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="dark-theme auth-bg">
+    <script>
+        if(localStorage.getItem('theme') === 'light') document.body.classList.remove('dark-theme');
+        else document.body.classList.add('dark-theme');
+    </script>
+    <button onclick="toggleTheme()" class="btn btn-secondary" style="position: absolute; top: 20px; right: 20px; border-radius: 50%; width: 44px; height: 44px; padding: 0; display: flex; justify-content: center; align-items: center;" title="Modo Claro / Oscuro">
+        <i data-lucide="moon"></i>
+    </button>
+    <div class="auth-container">
+        <div class="auth-card glass-panel">
+            <div class="auth-header">
+                <i data-lucide="database" class="logo-icon logo-large"></i>
+                <h2>MicroBase</h2>
+            </div>
+            
+            <div id="step-email">
+                <p class="auth-subtitle">Ingresa tu correo para continuar</p>
+                <div class="form-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="email-input" class="input-neumorphic" placeholder="nombre@empresa.com" required>
+                </div>
+                <button class="btn btn-primary btn-block" onclick="checkEmail()">Continuar</button>
+            </div>
+            
+            <div id="step-password" style="display: none;">
+                <p class="auth-subtitle">Ingresa tu contraseña</p>
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="password-input" class="input-neumorphic" placeholder="••••••••" required>
+                </div>
+                <button class="btn btn-primary btn-block" onclick="login()">Iniciar Sesión</button>
+                <div class="auth-links" style="margin-top: 12px; text-align: center;">
+                    <button class="btn-link" onclick="backToEmail()">Volver atrás</button>
+                </div>
+            </div>
+
+            <div class="auth-footer">
+                <p id="footer-default">¿Olvidaste tu contraseña? <a href="#">Recuperar</a></p>
+                <p id="register-suggestion" style="margin-top: 10px;">¿No tienes cuenta? <a href="/register">Regístrate</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
