@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,9 +14,10 @@
     <!-- Custom Styles -->
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
+
 <body class="dark-theme">
     <script>
-        if(localStorage.getItem('theme') === 'light') document.body.classList.remove('dark-theme');
+        if (localStorage.getItem('theme') === 'light') document.body.classList.remove('dark-theme');
         else document.body.classList.add('dark-theme');
     </script>
     <div class="app-container">
@@ -29,72 +31,83 @@
                 <ul>
                     <li class="nav-section-title">PRINCIPAL</li>
                     <li>
-                        <a href="/dashboard" class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}">
+                        <a href="/dashboard"
+                            class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}">
                             <i data-lucide="home"></i> Dashboard
                         </a>
                     </li>
                     <li>
-                        <a href="/tables-view" class="nav-link {% if request.url.path == '/tables-view' %}active{% endif %}">
+                        <a href="/tables-view"
+                            class="nav-link {% if request.url.path == '/tables-view' %}active{% endif %}">
                             <i data-lucide="table"></i> Mis Tablas
                         </a>
                     </li>
+                    <li>
+                        <a href="/audits-view"
+                            class="nav-link {% if request.url.path == '/audits-view' %}active{% endif %}">
+                            <i data-lucide="clipboard-list"></i> Historial Fiscal
+                        </a>
+                    </li>
+                    {% if user.role in ['admin', 'manager'] %}
                     <li>
                         <a href="/settings" class="nav-link {% if request.url.path == '/settings' %}active{% endif %}">
                             <i data-lucide="settings"></i> Configuración
                         </a>
                     </li>
-                    {% if user.role in ['admin', 'manager'] %}
-                    <li>
-                        <a href="/audits-view" class="nav-link {% if request.url.path == '/audits-view' %}active{% endif %}">
-                            <i data-lucide="clipboard-list"></i> Historial Fiscal
-                        </a>
-                    </li>
                     {% endif %}
                 </ul>
-                
+
                 {% if tables is defined %}
                 <ul id="workspace-list" style="margin-top: 24px;">
-                    <li class="nav-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                    <li class="nav-section-title"
+                        style="display: flex; justify-content: space-between; align-items: center;">
                         <span>ESPACIOS DE TRABAJO</span>
                     </li>
                     <li class="table-search-li" style="padding: 0 24px 12px 24px;">
-                        <input type="search" id="table-search" placeholder="🔍 Buscar tabla..." class="input-neumorphic" style="width: 100%; padding: 6px 12px; font-size: 0.8rem; background: var(--secondary);" onkeyup="filterTables()">
+                        <input type="search" id="table-search" placeholder="🔍 Buscar tabla..." class="input-neumorphic"
+                            style="width: 100%; padding: 6px 12px; font-size: 0.8rem; background: var(--secondary);"
+                            onkeyup="filterTables()">
                     </li>
                     {% for table in tables %}
-                        {% set table_lower = table.name | lower %}
-                        
-                        {# Regla RBAC: Empleados oculto para Cajeros/Bodegueros/Gerentes #}
-                        {% set hide_empleados = (user.role != 'admin' and 'empleado' in table_lower) %}
-                        
-                        {# Regla RBAC: Clientes oculto para Bodegueros #}
-                        {% set hide_clientes = (user.role == 'bodeguero' and 'cliente' in table_lower) %}
-                        
-                        {% if not hide_empleados and not hide_clientes %}
-                        <li class="table-item">
-                            <a href="#" class="nav-link" data-table-id="{{ table.id }}" onclick="loadTable('{{ table.id }}', event)">
-                                <i data-lucide="folder"></i> <span class="table-name-text">{{ table.name }}</span>
-                            </a>
-                        </li>
-                        {% endif %}
+                    {% set table_lower = table.name | lower %}
+
+                    {# Regla RBAC: Empleados oculto para Cajeros/Bodegueros/Gerentes #}
+                    {% set hide_empleados = (user.role != 'admin' and 'empleado' in table_lower) %}
+
+                    {# Regla RBAC: Clientes oculto para Bodegueros #}
+                    {% set hide_clientes = (user.role == 'bodeguero' and 'cliente' in table_lower) %}
+
+                    {% if not hide_empleados and not hide_clientes %}
+                    <li class="table-item">
+                        <a href="#" class="nav-link" data-table-id="{{ table.id }}"
+                            onclick="loadTable('{{ table.id }}', event)">
+                            <i data-lucide="folder"></i> <span class="table-name-text">{{ table.name }}</span>
+                        </a>
+                    </li>
+                    {% endif %}
                     {% endfor %}
                 </ul>
                 {% endif %}
             </nav>
-            
+
             <div style="padding: 24px; border-top: 1px solid var(--border-glass);">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                    <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                    <div
+                        style="width: 32px; height: 32px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 600;">
                         {{ user.full_name[0]|upper if user else 'U' }}
                     </div>
                     <div>
-                        <div style="font-size: 0.85rem; font-weight: 500; color: var(--text-main);">{{ user.full_name if user else 'Usuario' }}</div>
+                        <div style="font-size: 0.85rem; font-weight: 500; color: var(--text-main);">{{ user.full_name if
+                            user else 'Usuario' }}</div>
                     </div>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-secondary" style="flex: 1; justify-content: center; font-size: 0.8rem;" onclick="toggleTheme()" title="Modo Claro / Oscuro">
+                    <button class="btn btn-secondary" style="flex: 1; justify-content: center; font-size: 0.8rem;"
+                        onclick="toggleTheme()" title="Modo Claro / Oscuro">
                         <i data-lucide="moon" style="width: 16px;"></i> Tema
                     </button>
-                    <button class="btn btn-secondary" style="flex: 1; justify-content: center; font-size: 0.8rem;" onclick="logout()">Salir</button>
+                    <button class="btn btn-secondary" style="flex: 1; justify-content: center; font-size: 0.8rem;"
+                        onclick="logout()">Salir</button>
                 </div>
             </div>
         </aside>
@@ -102,8 +115,11 @@
         <!-- Main Content -->
         <main class="main-content" style="position: relative;">
             {% if user %}
-            <div style="position: absolute; top: 20px; right: 24px; background: rgba(0,0,0,0.2); padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border-glass); font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; z-index: 100; font-weight: 500;">
-                <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success);"></div>
+            <div
+                style="position: absolute; top: 20px; right: 24px; background: rgba(0,0,0,0.2); padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border-glass); font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; z-index: 100; font-weight: 500;">
+                <div
+                    style="width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success);">
+                </div>
                 <span style="text-transform: capitalize;">{{ user.role }}</span>
             </div>
             {% endif %}
@@ -119,7 +135,8 @@
         <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
                 <h2>Historial Fiscal y Auditoría</h2>
-                <button class="btn-link close-modal" onclick="closeModal('audits-modal')"><i data-lucide="x"></i></button>
+                <button class="btn-link close-modal" onclick="closeModal('audits-modal')"><i
+                        data-lucide="x"></i></button>
             </div>
             <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
                 <table class="data-table" style="width: 100%;">
@@ -156,4 +173,5 @@
         lucide.createIcons();
     </script>
 </body>
+
 </html>
