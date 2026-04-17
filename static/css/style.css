@@ -731,6 +731,131 @@ input:checked+.slider:before {
     background: rgba(255, 255, 255, 0.2);
 }
 
+/* --- Builder Styles --- */
+.builder-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 24px;
+    height: calc(100vh - 120px);
+    margin-top: 20px;
+}
+
+.builder-toolbox {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.draggable-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    padding: 12px 16px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: grab;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.draggable-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.draggable-item:active {
+    cursor: grabbing;
+}
+
+.draggable-item.dragging {
+    opacity: 0.5;
+    border-style: dashed;
+}
+
+.builder-canvas {
+    overflow-y: auto;
+    padding-right: 12px;
+}
+
+.drop-zone {
+    min-height: 400px;
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: all 0.3s;
+    background: rgba(0,0,0,0.05);
+}
+
+.drop-zone-active {
+    border-color: var(--primary);
+    background: rgba(59, 130, 246, 0.05);
+    box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.1);
+}
+
+.empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    gap: 12px;
+}
+
+.field-config-card {
+    display: grid;
+    grid-template-columns: 40px 1fr 40px;
+    align-items: center;
+    padding: 16px;
+    gap: 16px;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.field-drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: center;
+}
+
+.field-type-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--primary);
+    background: rgba(59, 130, 246, 0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.field-name-input {
+    width: 100%;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 /* ---- Mobile Responsiveness ---- */
 @media (max-width: 768px) {
     .app-container {

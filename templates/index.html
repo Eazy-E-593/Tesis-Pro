@@ -56,6 +56,13 @@
     <i data-lucide="sparkles" class="welcome-icon"></i>
     <h2>Gestión de Tablas</h2>
     <p>Selecciona una tabla en el menú lateral para empezar a administrar o crea una nueva.</p>
+    {% if user.role in ['admin', 'manager'] %}
+    <div style="margin-top: 24px;">
+        <button class="btn btn-primary" onclick="window.location.href='/create-table'" style="padding: 12px 32px; font-size: 1rem; box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);">
+            <i data-lucide="layout-template"></i> Crear Mi Propia Tabla
+        </button>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 

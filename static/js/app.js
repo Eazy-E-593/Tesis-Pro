@@ -20,7 +20,7 @@ async function loadTable(tableId) {
         const data = await response.json();
 
         document.getElementById('current-table-name').innerText = data.name;
-        
+
         // Mostrar / Ocultar botón de Movimientos
         let btnMovimientos = document.getElementById('btn-movimientos');
         if (btnMovimientos) {
@@ -30,13 +30,13 @@ async function loadTable(tableId) {
                 btnMovimientos.style.display = 'none';
             }
         }
-        
+
         let btnCreate = document.getElementById('btn-create-row');
         if (btnCreate) {
             let role = typeof currentUserRole !== 'undefined' ? currentUserRole : 'empleado';
             if (['admin', 'manager'].includes(role)) {
                 let singularName = data.name.endsWith('s') ? data.name.slice(0, -1) : data.name;
-                btnCreate.innerHTML = `<i data-lucide="plus"></i> Crear ${singularName}`;
+                btnCreate.innerHTML = `<i data-lucide="plus"></i> Añadir ${singularName}`;
                 btnCreate.style.display = 'inline-flex';
             } else {
                 btnCreate.style.display = 'none';
@@ -147,7 +147,7 @@ function renderTable(fields, records) {
                     saveRow(record.id);
                 }
             });
-            
+
             // Progressive Disclosure Logic
             input.addEventListener('input', () => updateRowProgressive(tr));
 
@@ -185,7 +185,7 @@ function renderTable(fields, records) {
         tr.appendChild(actionTd);
 
         tbody.appendChild(tr);
-        
+
         // Initial run to lock upcoming empty cells
         updateRowProgressive(tr);
     });
@@ -199,7 +199,7 @@ function updateRowProgressive(tr) {
 
     allInputs.forEach(input => {
         if (input.title === "Generado automáticamente") return; // Ignorar el COD autogenerado
-        
+
         let container = input.parentElement;
         let placeholder = container.querySelector('.empty-placeholder');
 
@@ -212,7 +212,7 @@ function updateRowProgressive(tr) {
             input.disabled = false;
             input.style.opacity = '1';
             container.style.opacity = '1';
-            
+
             if (input.value.trim() === '') {
                 previousFilled = false; // La cadena se rompe aquí
                 if (placeholder && document.activeElement !== input) {
@@ -225,17 +225,17 @@ function updateRowProgressive(tr) {
     });
 }
 
-window.enableEditRow = function(recordId, btn) {
+window.enableEditRow = function (recordId, btn) {
     let tr = document.querySelector(`tr[data-record-id="${recordId}"]`);
     if (!tr) return;
-    
+
     let inputs = tr.querySelectorAll('.cell-input:not([title="Generado automáticamente"])');
     inputs.forEach(inp => {
         inp.readOnly = false;
         inp.classList.remove('locked-input');
     });
 
-    if(inputs.length > 0) inputs[0].focus();
+    if (inputs.length > 0) inputs[0].focus();
 
     btn.outerHTML = `
         <button class="btn btn-primary action-btn save-btn" onclick="saveRow(${recordId})" style="padding: 6px 12px; margin-right: 8px; font-size: 0.8rem;" title="Guardar Fila">
@@ -285,21 +285,21 @@ async function saveRow(recordId) {
     if (!tr) return;
 
     console.log(`Guardando fila: ${recordId}`);
-    
+
     let updatedData = {};
     let inputs = tr.querySelectorAll('input');
     let isValid = true;
-    
+
     currentFields.forEach((f, idx) => {
         let type = inputs[idx].type;
         let val = inputs[idx].value;
-        
+
         // Validación Anti-Vacíos
         if (String(val).trim() === '' && f.name.toUpperCase() !== 'COD') {
             alert(`El campo "${f.name}" es obligatorio y no puede quedar vacío.`);
             isValid = false;
         }
-        
+
         if (type === 'number' && val !== '') val = Number(val);
         updatedData[f.name] = val;
     });
@@ -338,7 +338,7 @@ async function saveRow(recordId) {
                 lucide.createIcons();
             }, 2000);
         }
-        
+
         // Ensure UI updates the global record without moving the user's focus
         loadTableSilently();
     } catch (e) {
@@ -451,7 +451,7 @@ function toggleTheme() {
         localStorage.setItem('theme', 'dark');
         isDark = true;
     }
-    
+
     let toggleSettings = document.getElementById('theme-toggle-settings');
     if (toggleSettings) toggleSettings.checked = isDark;
 }
@@ -471,7 +471,7 @@ function changeZoom(delta) {
 function applyZoom() {
     let zoomLevel = 1 + (currentZoomDelta * 0.1);
     document.body.style.zoom = zoomLevel;
-    
+
     let display = document.getElementById('zoom-level-display');
     if (display) {
         display.innerText = Math.round(zoomLevel * 100) + '%';
@@ -495,7 +495,7 @@ async function loadClientsDatalist() {
                 dl.appendChild(opt);
             });
         }
-    } catch(e) { }
+    } catch (e) { }
 }
 
 function openMovementPanel() {
@@ -563,7 +563,7 @@ function updateCartQty(id, change) {
 function toggleMovementType() {
     let typeEl = document.querySelector('input[name="mov-type"]:checked');
     let type = typeEl ? typeEl.value : "Venta";
-    
+
     let clientLabel = document.getElementById('lbl-mov-client');
     let financials = document.getElementById('cart-financials');
     let btnProcess = document.getElementById('btn-process-mov');
@@ -586,7 +586,7 @@ function toggleMovementType() {
 function renderCart() {
     const c = document.getElementById('cart-items');
     c.innerHTML = '';
-    
+
     let total = 0;
     let typeEl = document.querySelector('input[name="mov-type"]:checked');
     let type = typeEl ? typeEl.value : "Venta";
@@ -594,7 +594,7 @@ function renderCart() {
     Object.values(cartItems).forEach(item => {
         let div = document.createElement('div');
         div.className = 'cart-item';
-        
+
         // Soporte para "Precio" o "Precio por Unidad"
         let precioVal = item.record.data['Precio por Unidad'] || item.record.data['Precio'] || item.record.data['precio'] || 0;
         let precio = parseFloat(precioVal) || 0;
@@ -634,7 +634,7 @@ async function processMovement() {
     let typeEl = document.querySelector('input[name="mov-type"]:checked');
     let type = typeEl ? typeEl.value : "Venta";
     let clientName = document.getElementById('mov-client').value.trim();
-    
+
     let payload = Object.values(cartItems).map(i => ({ record_id: i.record.id, quantity_change: i.qty }));
     if (payload.length === 0) return alert("Ponga elementos de inventario en el panel para registrar.");
 
@@ -646,13 +646,13 @@ async function processMovement() {
         const res = await fetch('/inventory/movement', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 type: type,
                 client_name: clientName,
                 subtotal: parseFloat(subtotalText),
                 iva: parseFloat(ivaText),
                 total: parseFloat(totalText),
-                items: payload 
+                items: payload
             })
         });
         if (res.ok) {
@@ -688,12 +688,12 @@ async function openAuditsModal() {
     document.getElementById('audits-modal').style.display = 'flex';
     const tbody = document.getElementById('audits-table-body');
     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Cargando historial...</td></tr>';
-    
+
     try {
         const res = await fetch('/api/audits');
         const audits = await res.json();
         tbody.innerHTML = '';
-        
+
         if (audits.length === 0) {
             tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay registros aún.</td></tr>';
             return;
@@ -701,7 +701,7 @@ async function openAuditsModal() {
 
         audits.forEach(a => {
             let tr = document.createElement('tr');
-            
+
             // Si la acción incluye Venta o Compra, resaltamos visualmente el recuadro
             let actionHtml = a.action;
             if (a.action.includes('Venta |')) {

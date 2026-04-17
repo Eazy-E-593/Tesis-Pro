@@ -1,12 +1,15 @@
+import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./microbase.db"
-# En un futuro para Postgres se usará algo como "postgresql://user:password@postgresserver/db"
+load_dotenv()
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+# Obtener URL desde .env. Si no existe, lanza un error (o puedes dejar sqlite como fallback).
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost/microbase")
+
+# Para Postgres, ya NO se necesita el argument 'connect_args={"check_same_thread": False}'
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

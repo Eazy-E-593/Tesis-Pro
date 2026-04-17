@@ -85,6 +85,9 @@ class AppTableBase(BaseModel):
 class AppTableCreate(AppTableBase):
     pass
 
+class AppTableCreateFull(AppTableBase):
+    fields: List[AppFieldCreate]
+
 class AppTable(AppTableBase):
     id: int
     fields: List[AppField] = []

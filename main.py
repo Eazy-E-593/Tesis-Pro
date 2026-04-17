@@ -123,6 +123,14 @@ async def settings_page(request: Request, db: Session = Depends(database.get_db)
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
     return templates.TemplateResponse("settings.html", {"request": request, "user": user})
 
+@app.get("/create-table", response_class=HTMLResponse, include_in_schema=False)
+async def create_table_page(request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role not in ["admin", "manager"]:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    tables = db.query(models.AppTable).all()
+    return templates.TemplateResponse("create_table.html", {"request": request, "user": user, "tables": tables})
+
 # --- APIs ---
 @app.post("/auth/check-email", tags=["auth"])
 def check_email(payload: schemas.EmailCheck, db: Session = Depends(database.get_db)):
@@ -174,6 +182,27 @@ def api_get_table(table_id: int, db: Session = Depends(database.get_db)):
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
     return table
+
+@app.post("/api/tables/full", response_model=schemas.AppTable, tags=["tables"])
+def api_create_table_full(payload: schemas.AppTableCreateFull, request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para crear tablas.")
+    
+    # Crear la tabla
+    new_table = models.AppTable(name=payload.name, description=payload.description)
+    db.add(new_table)
+    db.commit()
+    db.refresh(new_table)
+    
+    # Crear los campos
+    for field in payload.fields:
+        db_field = models.AppField(name=field.name, field_type=field.field_type, table_id=new_table.id)
+        db.add(db_field)
+    
+    db.commit()
+    db.refresh(new_table)
+    return new_table
 
 @app.delete("/tables/{table_id}", tags=["tables"])
 def api_delete_table(table_id: int, request: Request, db: Session = Depends(database.get_db)):
