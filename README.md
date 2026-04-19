@@ -20,7 +20,7 @@ MicroBase es una plataforma SaaS (Software as a Service) modular y dinámica, di
 ## 🛠️ Stack Tecnológico
 
 *   **Backend:** Python con [FastAPI](https://fastapi.tiangolo.com/).
-*   **Base de Datos:** SQLite automatizada con [SQLAlchemy] y diseño de ORM.
+*   **Base de Datos:** PostgreSQL con [SQLAlchemy] y diseño de ORM.
 *   **Renderizado de Vistas:** Jinja2 (Inyectando HTML servido en tiempo real desde el Backend).
 *   **Frontend (Lógica Lado Cliente):** HTML5 Semántico, CSS3 Vanilla (`style.css`), y JavaScript Vanilla (`app.js`).
 *   **Íconos Visuales:** Sistema Lucide.
@@ -54,4 +54,4 @@ Posteriormente, navega a `http://127.0.0.1:8000/dashboard` en tu navegador.
 ## 🗺️ Futuros Desarrollos (Roadmap v2.0)
 - Generación de Tickets y Facturas Digitales en formato PDF exportables e imprimibles bajo estándares comerciales.
 - Multitenancy: Creación de instancias modulares para albergar una rama corporativa multi-sucursal y diseñador de Roles Customizados.
-- Migración de SQLite a infraestructura PostgreSQL de producción.
+- PostgreSQL en producción con jerarquía de roles y constructor de tablas avanzado.
