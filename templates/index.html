@@ -21,6 +21,11 @@
         <button class="btn btn-primary" onclick="showAddColumnModal()">
             <i data-lucide="plus-circle"></i> Añadir Columna
         </button>
+
+        <!-- 2b. Editar Columnas -->
+        <button class="btn btn-secondary" onclick="openManageColumnsModal()" style="border: 1px solid var(--border-color);">
+            <i data-lucide="sliders-horizontal"></i> Editar Columnas
+        </button>
         {% endif %}
 
         <!-- 3. Crear Producto / Fila -->
@@ -85,12 +90,36 @@
                     <option value="text">Texto Libre</option>
                     <option value="number">Número / Cantidad</option>
                     <option value="date">Fecha</option>
+                    <option value="select">Selección Única</option>
                 </select>
+            </div>
+            <div class="form-group">
+                <label>Opciones sugeridas <span style="color:var(--text-muted); font-size:0.8rem;">(separadas por comas, opcional)</span></label>
+                <input type="text" id="new-col-options" class="input-neumorphic" placeholder="Ej: Activo, Inactivo, Pendiente" />
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeModal('add-column-modal')">Cancelar</button>
             <button class="btn btn-primary" onclick="submitNewColumn()">Crear Columna</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Gestionar / Editar Columnas -->
+<div class="modal-overlay" id="manage-columns-modal" style="align-items: flex-start; padding-top: 60px;">
+    <div class="modal glass-panel" style="width: 560px; max-width: 95vw;">
+        <div class="modal-header">
+            <h3><i data-lucide="sliders-horizontal" style="width:18px; margin-right:8px;"></i>Editar Columnas</h3>
+            <button class="close-btn" onclick="document.getElementById('manage-columns-modal').classList.remove('active')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+            <div id="manage-columns-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="document.getElementById('manage-columns-modal').classList.remove('active')">Cerrar</button>
+            <button class="btn btn-primary" onclick="saveAllColumns()" id="btn-save-all-cols">
+                <i data-lucide="save"></i> Guardar Todo
+            </button>
         </div>
     </div>
 </div>

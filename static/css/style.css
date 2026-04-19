@@ -259,6 +259,7 @@ body {
     cursor: default;
     color: var(--text-main);
 }
+
 .cell-input.locked-input:focus {
     background: transparent !important;
     border-bottom: 2px solid transparent !important;
@@ -392,6 +393,24 @@ body {
     outline: none;
     border-color: var(--border-highlight);
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* Fix para select y options en modo oscuro */
+select.input-neumorphic {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a0aec0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+}
+
+body.dark-theme select option {
+    background-color: #1b262c;
+    color: #ffffff;
+}
+
+body.dark-theme select {
+    color-scheme: dark; /* Ayuda a que algunos navegadores usen el estilo oscuro nativo */
 }
 
 .modal-footer {
@@ -624,7 +643,7 @@ body {
     left: 2px;
     bottom: 2px;
     background-color: white;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     transition: .4s;
 }
 
@@ -789,7 +808,7 @@ input:checked+.slider:before {
     flex-direction: column;
     gap: 16px;
     transition: all 0.3s;
-    background: rgba(0,0,0,0.05);
+    background: rgba(0, 0, 0, 0.05);
 }
 
 .drop-zone-active {
@@ -818,8 +837,15 @@ input:checked+.slider:before {
 }
 
 @keyframes slideIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .field-drag-handle {
@@ -852,8 +878,13 @@ input:checked+.slider:before {
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* ---- Mobile Responsiveness ---- */
@@ -861,7 +892,7 @@ input:checked+.slider:before {
     .app-container {
         flex-direction: column;
     }
-    
+
     .sidebar {
         width: 100%;
         height: auto;
@@ -872,13 +903,13 @@ input:checked+.slider:before {
         flex-direction: column;
         gap: 12px;
     }
-    
+
     .sidebar-header {
         padding: 0 20px;
         border-bottom: none;
         padding-bottom: 0;
     }
-    
+
     /* Stack the two lists vertically, but make them scroll horizontally independently */
     .sidebar-nav {
         display: flex;
@@ -886,31 +917,36 @@ input:checked+.slider:before {
         gap: 10px;
         padding: 0;
     }
-    
+
     .sidebar-nav ul {
         display: flex;
         flex-direction: row;
-        margin: 0 !important; /* Force override inline margin-top on mobile */
+        margin: 0 !important;
+        /* Force override inline margin-top on mobile */
         padding: 0 20px;
         gap: 10px;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        scrollbar-width: none; /* Firefox */
+        scrollbar-width: none;
+        /* Firefox */
     }
+
     .sidebar-nav ul::-webkit-scrollbar {
-        display: none; /* Chrome/Safari */
+        display: none;
+        /* Chrome/Safari */
     }
-    
+
     /* Hide titles to save space on mobile */
     .nav-section-title {
         display: none;
     }
-    
+
     .table-search-li {
         padding: 0 0 0 10px !important;
         display: flex;
         align-items: center;
     }
+
     .table-search-li input {
         width: 140px !important;
     }
@@ -918,11 +954,12 @@ input:checked+.slider:before {
     .nav-link {
         padding: 8px 16px;
         white-space: nowrap;
-        background: rgba(0,0,0,0.05); /* Slight bg to isolate buttons */
+        background: rgba(0, 0, 0, 0.05);
+        /* Slight bg to isolate buttons */
     }
 
     /* Convert User details and logout buttons to horizontal layout */
-    .sidebar > div:last-child {
+    .sidebar>div:last-child {
         padding: 0 20px;
         border-top: none;
         display: flex;
@@ -930,17 +967,19 @@ input:checked+.slider:before {
         align-items: center;
         justify-content: space-between;
     }
-    
-    .sidebar > div:last-child > div:first-child {
-        margin-bottom: 0 !important; /* Override inline margin */
+
+    .sidebar>div:last-child>div:first-child {
+        margin-bottom: 0 !important;
+        /* Override inline margin */
     }
-    
+
     .main-content {
         padding: 16px;
-        height: calc(100vh - 160px); /* Adjust height for scrolling */
+        height: calc(100vh - 160px);
+        /* Adjust height for scrolling */
         overflow-y: auto;
     }
-    
+
     .table-actions {
         flex-direction: column;
         align-items: stretch;

@@ -17,9 +17,14 @@
         <i data-lucide="moon"></i>
     </button>
     <div class="auth-container">
-        <div class="auth-card glass-panel" style="width: 450px;">
-            <div class="auth-header">
-                <h2>Registro de Usuario</h2>
+        <div class="auth-card glass-panel" style="width: 450px; position: relative;">
+            {% if user %}
+            <button onclick="window.location.href='/dashboard'" class="btn btn-secondary" style="position: absolute; top: 15px; left: 15px; padding: 6px 12px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> Volver
+            </button>
+            {% endif %}
+            <div class="auth-header" style="{% if user %}margin-top: 25px;{% endif %}">
+                <h2>{% if user %}Registrar Nuevo Usuario{% else %}Registro de Usuario{% endif %}</h2>
             </div>
             
             <div id="reg-step-1">
@@ -35,8 +40,10 @@
                     <label>Rol (Temporal para pruebas)</label>
                     <select id="reg-role" class="input-neumorphic">
                         <option value="empleado">Empleado</option>
+                        {% if not user or user.role == 'admin' %}
                         <option value="manager">Jefe / Manager</option>
                         <option value="admin">Administrador</option>
+                        {% endif %}
                     </select>
                 </div>
                 <button class="btn btn-primary btn-block" style="margin-top:20px;" onclick="checkRegisterEmail()">Continuar</button>
@@ -67,7 +74,11 @@
             </div>
 
             <div class="auth-footer" style="margin-top:24px;">
+                {% if not user %}
                 <p>¿Ya tienes una cuenta? <a href="/login">Inicia sesión</a></p>
+                {% else %}
+                <p>Estás registrando usuarios como <strong style="text-transform: capitalize;">{{ user.role }}</strong></p>
+                {% endif %}
             </div>
         </div>
     </div>

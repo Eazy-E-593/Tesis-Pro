@@ -2,11 +2,35 @@ let currentTableId = null;
 let currentFields = [];
 let currentTableRecords = [];
 
+window.appIsDirty = false;
+window.appLeaveMsg = '¿Seguro que quieres salir? Los cambios no se guardarán.';
+
 async function loadTable(tableId) {
-    // Update UI active state
+    if (window.appIsDirty) {
+        if (!confirm(window.appLeaveMsg)) {
+            return; // Abort loadTable
+        }
+        window.appIsDirty = false;
+    }
+
+    // Si no estamos en la vista de tablas, redirigir
+    if (!window.location.pathname.includes('tables-view')) {
+        window.location.href = `/tables-view#table-${tableId}`;
+        return;
+    }
+
+    // Cerrar panel de movimientos si está abierto
+    const panel = document.getElementById('movement-panel');
+    if (panel && panel.classList.contains('open')) {
+        closeMovementPanel();
+    }
+
+    // Update UI active state safely
     document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
     if (typeof event !== 'undefined' && event && event.currentTarget) {
-        event.currentTarget.classList.add('active');
+        if (event.currentTarget.classList) {
+            event.currentTarget.classList.add('active');
+        }
     }
 
     // Show table container, hide welcome
@@ -88,39 +112,95 @@ function renderTable(fields, records) {
 
         // Ensure data is parsed if needed
         let dataObj = record.data || {};
-        let isNewRow = !fields.some(f => f.name.toUpperCase() !== 'COD' && dataObj[f.name] !== "" && dataObj[f.name] !== undefined);
+        // Exclude auto-generated fields (COD, ID) from the "new row" detection
+        const AUTO_FIELDS = ['COD', 'ID'];
+        let isNewRow = !fields.some(f => !AUTO_FIELDS.includes(f.name.toUpperCase()) && dataObj[f.name] !== "" && dataObj[f.name] !== undefined);
 
         fields.forEach(field => {
             let td = document.createElement('td');
             let val = dataObj[field.name] || '';
 
             // Render basic input for inline editing
-            let inputType = field.field_type === 'number' ? 'number' : (field.field_type === 'date' ? 'date' : 'text');
             let isSku = field.name.toUpperCase() === 'COD';
+            let isAutoId = field.name.toUpperCase() === 'ID';
+            // Los campos auto-generados siempre son texto (el browser ignora strings en type="number")
+            let inputType = (isSku || isAutoId) ? 'text'
+                : field.field_type === 'number' ? 'number'
+                    : field.field_type === 'date' ? 'date'
+                        : 'text';
 
             let inputContainer = document.createElement('div');
             inputContainer.style.position = 'relative';
 
-            let input = document.createElement('input');
-            input.type = inputType;
-            input.value = val;
-            input.className = 'cell-input';
-            if (isSku) {
-                input.disabled = true;
-                input.title = "Generado automáticamente";
-            } else {
+            let input;
+
+            if (field.field_type === 'select') {
+                input = document.createElement('select');
+                input.className = 'cell-input input-neumorphic';
+                // Añadir una opción vacía por defecto
+                let defaultOpt = document.createElement('option');
+                defaultOpt.value = "";
+                defaultOpt.textContent = "Seleccione...";
+                if (!val) defaultOpt.selected = true;
+                input.appendChild(defaultOpt);
+
+                if (field.options) {
+                    let opts = field.options.split(',');
+                    opts.forEach(opt => {
+                        let option = document.createElement('option');
+                        let trimOpt = opt.trim();
+                        option.value = trimOpt;
+                        option.textContent = trimOpt;
+                        if (val === trimOpt) option.selected = true;
+                        input.appendChild(option);
+                    });
+                }
+                
                 if (!isNewRow) {
-                    input.readOnly = true;
+                    input.disabled = true; // select usa disabled, no readOnly
                     input.classList.add('locked-input');
                 }
-            }
-            if (field.name.toUpperCase() === 'UNIDAD DE VENTA' || field.name.toUpperCase() === 'UNIDAD') {
-                input.setAttribute('list', 'unidades-list');
-                input.placeholder = "Buscar unidad...";
+            } else {
+                input = document.createElement('input');
+                input.type = inputType;
+                input.value = val;
+                input.className = 'cell-input';
+                if (isSku || isAutoId) {
+                    input.readOnly = true;
+                    input.title = "Generado automáticamente";
+                    input.classList.add('locked-input');
+                    input.style.cursor = 'default';
+                    input.style.color = 'var(--text-muted)';
+                    input.style.fontStyle = 'italic';
+                } else {
+                    if (!isNewRow) {
+                        input.readOnly = true;
+                        input.classList.add('locked-input');
+                    }
+                }
+
+                if (field.name.toUpperCase() === 'UNIDAD DE VENTA' || field.name.toUpperCase() === 'UNIDAD') {
+                    input.setAttribute('list', 'unidades-list');
+                    input.placeholder = "Buscar unidad...";
+                } else if (field.options) {
+                    let datalistId = 'list-' + field.id + '-' + record.id;
+                    input.setAttribute('list', datalistId);
+                    input.placeholder = "Opciones disponibles...";
+
+                    let datalist = document.createElement('datalist');
+                    datalist.id = datalistId;
+                    let opts = field.options.split(',');
+                    opts.forEach(opt => {
+                        let option = document.createElement('option');
+                        option.value = opt.trim();
+                        datalist.appendChild(option);
+                    });
+                    inputContainer.appendChild(datalist);
+                }
             }
 
             // Empty state UX
-            if (!val && !isSku) {
+            if (!val && !isSku && !isAutoId && input.tagName !== 'SELECT') {
                 input.classList.add('empty-cell');
                 let placeholder = document.createElement('span');
                 placeholder.className = 'empty-placeholder';
@@ -198,7 +278,7 @@ function updateRowProgressive(tr) {
     let previousFilled = true;
 
     allInputs.forEach(input => {
-        if (input.title === "Generado automáticamente") return; // Ignorar el COD autogenerado
+        if (input.title === "Generado automáticamente") return; // Ignorar campos auto-generados (COD, ID)
 
         let container = input.parentElement;
         let placeholder = container.querySelector('.empty-placeholder');
@@ -232,6 +312,7 @@ window.enableEditRow = function (recordId, btn) {
     let inputs = tr.querySelectorAll('.cell-input:not([title="Generado automáticamente"])');
     inputs.forEach(inp => {
         inp.readOnly = false;
+        inp.disabled = false; // Desbloquea también los elementos select
         inp.classList.remove('locked-input');
     });
 
@@ -249,6 +330,15 @@ window.enableEditRow = function (recordId, btn) {
 
 async function addRow() {
     if (!currentTableId) return;
+
+    // Bloquear si ya hay una fila nueva sin guardar
+    const pendingSaveBtn = document.querySelector('#table-body .save-btn');
+    if (pendingSaveBtn) {
+        alert("Completa y guarda la fila actual antes de crear una nueva.");
+        const firstInput = pendingSaveBtn.closest('tr')?.querySelector('.cell-input:not([title="Generado automáticamente"])');
+        if (firstInput) firstInput.focus();
+        return;
+    }
 
     // Create an empty payload string based on current fields
     let initialData = {};
@@ -287,15 +377,16 @@ async function saveRow(recordId) {
     console.log(`Guardando fila: ${recordId}`);
 
     let updatedData = {};
-    let inputs = tr.querySelectorAll('input');
+    let inputs = tr.querySelectorAll('.cell-input');
     let isValid = true;
 
     currentFields.forEach((f, idx) => {
         let type = inputs[idx].type;
         let val = inputs[idx].value;
 
-        // Validación Anti-Vacíos
-        if (String(val).trim() === '' && f.name.toUpperCase() !== 'COD') {
+        // Validación Anti-Vacíos (excluir campos auto-generados)
+        const AUTO_FIELDS_SAVE = ['COD', 'ID'];
+        if (String(val).trim() === '' && !AUTO_FIELDS_SAVE.includes(f.name.toUpperCase())) {
             alert(`El campo "${f.name}" es obligatorio y no puede quedar vacío.`);
             isValid = false;
         }
@@ -332,26 +423,17 @@ async function saveRow(recordId) {
             saveBtn.style.backgroundColor = 'var(--success)';
             saveBtn.innerHTML = '<i data-lucide="check" style="width: 14px;"></i> Listo';
             saveBtn.style.opacity = '1';
+            
+            // Esperar un momento para que el usuario vea el "Listo" y luego refrescar la fila
             setTimeout(() => {
-                saveBtn.style.backgroundColor = '';
-                saveBtn.innerHTML = '<i data-lucide="save" style="width: 14px;"></i> Guardar';
-                lucide.createIcons();
-            }, 2000);
+                loadTableSilently();
+            }, 600);
+        } else {
+            loadTableSilently();
         }
-
-        // Ensure UI updates the global record without moving the user's focus
-        loadTableSilently();
     } catch (e) {
         console.error("Failed to save row", e);
-        if (saveBtn) {
-            saveBtn.innerHTML = '<i data-lucide="x" style="width: 14px;"></i> Error';
-            saveBtn.style.backgroundColor = 'var(--danger)';
-            setTimeout(() => {
-                saveBtn.style.backgroundColor = '';
-                saveBtn.innerHTML = '<i data-lucide="save" style="width: 14px;"></i> Guardar';
-                lucide.createIcons();
-            }, 2000);
-        }
+        loadTableSilently();
     }
 }
 
@@ -364,14 +446,18 @@ function showAddColumnModal() {
 
 function closeModal(id) {
     document.getElementById(id).classList.remove('active');
-    document.getElementById('new-col-name').value = '';
+    const nameEl = document.getElementById('new-col-name');
+    const optEl = document.getElementById('new-col-options');
+    if (nameEl) nameEl.value = '';
+    if (optEl) optEl.value = '';
 }
 
 async function submitNewColumn() {
     if (!currentTableId) return;
 
-    let colName = document.getElementById('new-col-name').value;
+    let colName = document.getElementById('new-col-name').value.trim();
     let colType = document.getElementById('new-col-type').value;
+    let colOptions = document.getElementById('new-col-options')?.value.trim() || null;
 
     if (!colName) {
         alert("El nombre de la columna no puede estar vacío");
@@ -382,7 +468,7 @@ async function submitNewColumn() {
         await fetch(`/tables/${currentTableId}/fields`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: colName, field_type: colType })
+            body: JSON.stringify({ name: colName, field_type: colType, options: colOptions || null })
         });
 
         closeModal('add-column-modal');
@@ -391,6 +477,230 @@ async function submitNewColumn() {
         console.error("Failed to add column", e);
     }
 }
+
+// Oculta/Muestra las opciones sugeridas según el tipo elegido
+window.toggleSuggestedOptions = function(selectEl) {
+    const parentContainer = selectEl.closest('div[style]').parentElement;
+    const optionsContainer = parentContainer.querySelector('.options-container');
+    if (optionsContainer) {
+        const input = optionsContainer.querySelector('input');
+        if (selectEl.value === 'select') {
+            input.readOnly = false;
+            input.style.opacity = '1';
+            input.style.pointerEvents = 'auto';
+            input.placeholder = 'Escribe las opciones (Ej: A, B, C)';
+        } else {
+            input.readOnly = true;
+            input.style.opacity = '0.7';
+            input.style.pointerEvents = 'none';
+            input.placeholder = 'Opciones sugeridas...';
+        }
+    }
+};
+
+// ── Estado local del reordenamiento (solo se aplica al guardar) ──────────────
+let _pendingFieldOrder = null; // null = no hay orden pendiente
+
+function openManageColumnsModal() {
+    if (!currentTableId) return alert("Selecciona una tabla primero.");
+
+    _pendingFieldOrder = null; // reset al abrir
+
+    const list = document.getElementById('manage-columns-list');
+    list.innerHTML = '';
+
+    // Resetear botón por si quedó en estado anterior
+    const saveBtn = document.getElementById('btn-save-all-cols');
+    saveBtn.style.background = '';
+    saveBtn.innerHTML = '<i data-lucide="save"></i> Guardar';
+    saveBtn.disabled = false;
+
+    let dragSrc = null;
+
+    currentFields.forEach((field) => {
+        const card = document.createElement('div');
+        card.style.cssText = 'display:flex; gap:10px; align-items:center; background:var(--secondary); padding:12px; border-radius:10px; flex-wrap:wrap; cursor:default; transition: border-top 0.1s;';
+        card.dataset.fieldId = field.id;
+        card.draggable = true;
+
+        card.innerHTML = `
+            <div style="cursor:grab; color:var(--text-muted); padding:0 4px; display:flex; align-items:center;" title="Arrastra para reordenar">
+                <i data-lucide="grip-vertical" style="width:18px;"></i>
+            </div>
+            <div style="flex:1; min-width:120px;">
+                <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">Nombre</label>
+                <input type="text" value="${field.name}" class="input-neumorphic col-edit-name"
+                       data-field-id="${field.id}" style="width:100%; padding:8px;">
+            </div>
+            <div style="width:130px;">
+                <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">Tipo</label>
+                <select class="input-neumorphic col-edit-type" data-field-id="${field.id}" style="width:100%; padding:8px;" onchange="window.toggleSuggestedOptions(this)">
+                    <option value="text"   ${field.field_type === 'text' ? 'selected' : ''}>Texto</option>
+                    <option value="number" ${field.field_type === 'number' ? 'selected' : ''}>Número</option>
+                    <option value="date"   ${field.field_type === 'date' ? 'selected' : ''}>Fecha</option>
+                    <option value="select" ${field.field_type === 'select' ? 'selected' : ''}>Selección</option>
+                </select>
+            </div>
+            <div class="options-container" style="flex:1; min-width:140px;">
+                <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">Opciones / Sugerencias</label>
+                <input type="text" value="${field.options || ''}" class="input-neumorphic col-edit-options"
+                       data-field-id="${field.id}" placeholder="${field.field_type === 'select' ? 'Escribe las opciones (Ej: A, B, C)' : 'Opciones sugeridas...'}" 
+                       style="width:100%; padding:8px; ${field.field_type !== 'select' ? 'opacity:0.7; pointer-events:none;' : ''}" ${field.field_type !== 'select' ? 'readonly' : ''}>
+            </div>
+            <div style="display:flex; align-items:center; padding-top:18px;">
+                <button onclick="deleteColumnFromModal(${field.id})" class="btn" style="padding:6px 10px; font-size:0.8rem; background:transparent; color:var(--danger); border:1px solid var(--danger);" title="Eliminar columna">
+                    <i data-lucide="trash-2" style="width:13px;"></i>
+                </button>
+            </div>
+        `;
+
+        // ── Drag & Drop (solo reordena en el DOM, no llama al backend aún) ──
+        card.addEventListener('dragstart', (e) => {
+            dragSrc = card;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(field.id));
+            setTimeout(() => card.style.opacity = '0.4', 0);
+        });
+
+        card.addEventListener('dragend', () => {
+            card.style.opacity = '1';
+            list.querySelectorAll('[data-field-id]').forEach(c => c.style.borderTop = '');
+        });
+
+        card.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            list.querySelectorAll('[data-field-id]').forEach(c => c.style.borderTop = '');
+            if (card !== dragSrc) card.style.borderTop = '2px solid var(--primary)';
+        });
+
+        card.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            list.querySelectorAll('[data-field-id]').forEach(c => c.style.borderTop = '');
+
+            if (dragSrc && dragSrc !== card) {
+                const cards = [...list.children];
+                const srcIdx = cards.indexOf(dragSrc);
+                const tgtIdx = cards.indexOf(card);
+                if (srcIdx < tgtIdx) {
+                    list.insertBefore(dragSrc, card.nextSibling);
+                } else {
+                    list.insertBefore(dragSrc, card);
+                }
+                // Marcar orden pendiente (se aplica solo al guardar)
+                _pendingFieldOrder = [...list.children].map((c, i) => ({
+                    id: parseInt(c.dataset.fieldId),
+                    order_index: i
+                }));
+            }
+            dragSrc = null;
+        });
+
+        list.appendChild(card);
+    });
+
+    lucide.createIcons();
+    document.getElementById('manage-columns-modal').classList.add('active');
+}
+
+async function deleteColumnFromModal(fieldId) {
+    if (!confirm("¿Seguro que deseas eliminar esta columna? Los datos de las filas no se perderán pero dejarán de mostrarse.")) return;
+    try {
+        await fetch(`/fields/${fieldId}`, { method: 'DELETE' });
+        document.getElementById('manage-columns-modal').classList.remove('active');
+        _pendingFieldOrder = null;
+        loadTableSilently();
+    } catch (e) {
+        console.error("Failed to delete column", e);
+    }
+}
+
+async function saveAllColumns() {
+    const btn = document.getElementById('btn-save-all-cols');
+    const cards = [...document.querySelectorAll('#manage-columns-list > [data-field-id]')];
+
+    if (cards.length === 0) return;
+
+    // Validar nombres
+    for (const card of cards) {
+        const nameInput = card.querySelector('.col-edit-name');
+        if (nameInput && !nameInput.value.trim()) {
+            nameInput.style.borderColor = 'var(--danger)';
+            nameInput.focus();
+            alert("Hay columnas sin nombre. Completa todos los campos antes de guardar.");
+            return;
+        }
+        if (nameInput) nameInput.style.borderColor = '';
+    }
+
+    btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Guardando...';
+    btn.disabled = true;
+    lucide.createIcons();
+
+    try {
+        // Guardar cada campo secuencialmente con verificación de respuesta
+        for (const card of cards) {
+            const fieldId = parseInt(card.dataset.fieldId);
+            const name = card.querySelector(`.col-edit-name[data-field-id="${fieldId}"]`).value.trim();
+            const type = card.querySelector(`.col-edit-type[data-field-id="${fieldId}"]`).value;
+            const options = card.querySelector(`.col-edit-options[data-field-id="${fieldId}"]`).value.trim();
+
+            const res = await fetch(`/fields/${fieldId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, field_type: type, options: options || null })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `Error al guardar campo #${fieldId} (${res.status})`);
+            }
+        }
+
+        // Guardar reordenamiento pendiente si existe
+        if (_pendingFieldOrder) {
+            const res = await fetch(`/tables/${currentTableId}/reorder-fields`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fields: _pendingFieldOrder })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `Error al guardar el orden (${res.status})`);
+            }
+        }
+
+        // ✅ Éxito: animación corta → cerrar modal
+        btn.style.background = 'var(--success)';
+        btn.innerHTML = '<i data-lucide="check"></i> ¡Guardado!';
+        lucide.createIcons();
+
+        setTimeout(() => {
+            document.getElementById('manage-columns-modal').classList.remove('active');
+            btn.style.background = '';
+            btn.innerHTML = '<i data-lucide="save"></i> Guardar';
+            btn.disabled = false;
+            _pendingFieldOrder = null;
+            lucide.createIcons();
+            loadTableSilently();
+        }, 1500);
+
+    } catch (e) {
+        console.error('saveAllColumns error:', e);
+        alert('No se pudieron guardar los cambios:\n' + e.message);
+        btn.style.background = 'var(--danger)';
+        btn.innerHTML = '<i data-lucide="x"></i> Error';
+        btn.disabled = false;
+        lucide.createIcons();
+        setTimeout(() => {
+            btn.style.background = '';
+            btn.innerHTML = '<i data-lucide="save"></i> Guardar';
+            lucide.createIcons();
+        }, 2000);
+    }
+}
+
 
 async function deleteColumn(fieldId) {
     if (!confirm("¿Seguro que deseas eliminar esta columna? Los datos existentes en las filas no se perderán pero dejarán de mostrarse.")) return;
@@ -844,7 +1154,13 @@ async function registerUser() {
             body: JSON.stringify({ email, full_name: name, password, role })
         });
         if (res.ok) {
-            window.location.href = "/dashboard";
+            const btnVolver = document.querySelector('button[onclick*="/dashboard"]');
+            if (btnVolver) {
+                alert("¡Usuario registrado con éxito como " + role + "!");
+                window.location.reload(); // Reiniciar formulario
+            } else {
+                window.location.href = "/dashboard";
+            }
         } else {
             const err = await res.json();
             alert("Error: " + (err.detail || "No se pudo registrar"));
@@ -863,3 +1179,30 @@ async function logout() {
     }
 }
 
+// Al cargar la página, si hay un hash #table-X, cargar esa tabla automáticamente
+// (pasa cuando se redirige desde otra página al hacer clic en una tabla del sidebar)
+function checkHashAndLoadTable() {
+    if (window.location.pathname.includes('tables-view')) {
+        const hash = window.location.hash; // ej: "#table-3"
+        const match = hash.match(/#table-(\d+)/); // más flexible sin ^ y $
+        if (match) {
+            const tableId = match[1];
+            // Limpiar el hash para que no quede en la URL
+            history.replaceState(null, '', window.location.pathname);
+            // Cargar la tabla
+            loadTable(tableId);
+            // Marcar activo en el sidebar
+            setTimeout(() => {
+                document.querySelectorAll(`.nav-link[data-table-id="${tableId}"]`).forEach(l => {
+                    l.classList.add('active');
+                });
+            }, 100);
+        }
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkHashAndLoadTable);
+} else {
+    checkHashAndLoadTable();
+}

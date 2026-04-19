@@ -42,6 +42,8 @@ class UserResponse(UserBase):
 class AppFieldBase(BaseModel):
     name: str
     field_type: str
+    options: Optional[str] = None
+    order_index: Optional[int] = None
 
 class AppFieldCreate(AppFieldBase):
     pass
@@ -95,3 +97,10 @@ class AppTable(AppTableBase):
 
     class Config:
         from_attributes = True
+
+class FieldOrderItem(BaseModel):
+    id: int
+    order_index: int
+
+class ReorderFieldsPayload(BaseModel):
+    fields: List[FieldOrderItem]

@@ -41,6 +41,8 @@ class AppField(Base):
     table_id = Column(Integer, ForeignKey("app_tables.id", ondelete="CASCADE"))
     name = Column(String)  # ej. "Precio", "Cantidad"
     field_type = Column(String)  # ej. "text", "number", "select", "date"
+    options = Column(String, nullable=True) # "A, B, C"
+    order_index = Column(Integer, nullable=True)  # Para ordenar columnas
 
     table = relationship("AppTable", back_populates="fields")
 

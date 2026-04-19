@@ -50,7 +50,7 @@ def init_db(db: Session):
         db.refresh(emp)
         db.add_all([
             models.AppField(table_id=emp.id, name="Nombre Completo", field_type="text"),
-            models.AppField(table_id=emp.id, name="Rol", field_type="text"),
+            models.AppField(table_id=emp.id, name="Rol", field_type="select", options="manager, empleado"),
             models.AppField(table_id=emp.id, name="Salario", field_type="number")
         ])
         
@@ -85,9 +85,11 @@ async def login_page(request: Request, db: Session = Depends(database.get_db)):
 
 @app.get("/register", response_class=HTMLResponse, include_in_schema=False)
 async def register_page(request: Request, db: Session = Depends(database.get_db)):
-    if get_current_user(request, db):
+    user = get_current_user(request, db)
+    # Si hay usuario y es empleado, no puede ver el registro
+    if user and user.role not in ["admin", "manager"]:
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
-    return templates.TemplateResponse("register.html", {"request": request})
+    return templates.TemplateResponse("register.html", {"request": request, "user": user})
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def dashboard_page(request: Request, db: Session = Depends(database.get_db)):
@@ -138,7 +140,16 @@ def check_email(payload: schemas.EmailCheck, db: Session = Depends(database.get_
     return {"exists": user is not None}
 
 @app.post("/auth/register", response_model=schemas.UserResponse, tags=["auth"])
-def api_register(payload: schemas.UserCreate, response: Response, db: Session = Depends(database.get_db)):
+def api_register(payload: schemas.UserCreate, request: Request, response: Response, db: Session = Depends(database.get_db)):
+    current_user = get_current_user(request, db)
+    
+    # Validaciones RBAC
+    if current_user:
+        if current_user.role == "manager" and payload.role in ["admin", "manager"]:
+            raise HTTPException(status_code=403, detail="Un Manager solo puede crear cuentas de Empleados.")
+        if current_user.role not in ["admin", "manager"]:
+            raise HTTPException(status_code=403, detail="No tienes permisos para registrar usuarios.")
+            
     user = db.query(models.User).filter(models.User.email == payload.email).first()
     if user:
         raise HTTPException(status_code=400, detail="Email ya registrado")
@@ -155,7 +166,11 @@ def api_register(payload: schemas.UserCreate, response: Response, db: Session = 
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    response.set_cookie(key="auth_token", value=new_user.email, httponly=True)
+    
+    # Solo establecer cookie y loguear automáticamente si NO hay nadie logueado (registro inicial)
+    if not current_user:
+        response.set_cookie(key="auth_token", value=new_user.email, httponly=True)
+        
     return new_user
 
 @app.post("/auth/login", tags=["auth"])
@@ -181,6 +196,8 @@ def api_get_table(table_id: int, db: Session = Depends(database.get_db)):
     table = db.query(models.AppTable).filter(models.AppTable.id == table_id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    # Ordenar campos por order_index, fallback a id
+    table.fields = sorted(table.fields, key=lambda f: (f.order_index if f.order_index is not None else f.id))
     return table
 
 @app.post("/api/tables/full", response_model=schemas.AppTable, tags=["tables"])
@@ -195,14 +212,30 @@ def api_create_table_full(payload: schemas.AppTableCreateFull, request: Request,
     db.commit()
     db.refresh(new_table)
     
-    # Crear los campos
-    for field in payload.fields:
-        db_field = models.AppField(name=field.name, field_type=field.field_type, table_id=new_table.id)
+    # Crear los campos con su order_index preservado
+    for idx, field in enumerate(payload.fields):
+        db_field = models.AppField(
+            name=field.name,
+            field_type=field.field_type,
+            options=field.options,
+            order_index=idx,
+            table_id=new_table.id
+        )
         db.add(db_field)
-    
+
     db.commit()
     db.refresh(new_table)
     return new_table
+
+@app.put("/tables/{table_id}/reorder-fields", tags=["tables"])
+def api_reorder_fields(table_id: int, payload: schemas.ReorderFieldsPayload, request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para reordenar columnas.")
+    for item in payload.fields:
+        db.query(models.AppField).filter(models.AppField.id == item.id).update({"order_index": item.order_index})
+    db.commit()
+    return {"ok": True}
 
 @app.delete("/tables/{table_id}", tags=["tables"])
 def api_delete_table(table_id: int, request: Request, db: Session = Depends(database.get_db)):
@@ -237,20 +270,44 @@ def api_delete_field(field_id: int, db: Session = Depends(database.get_db)):
         return {"ok": True}
     return {"ok": False}
 
+@app.put("/fields/{field_id}", response_model=schemas.AppField, tags=["tables"])
+def api_update_field(field_id: int, field: schemas.AppFieldCreate, request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="No tienes permisos para editar columnas.")
+    db_field = db.query(models.AppField).filter(models.AppField.id == field_id).first()
+    if not db_field:
+        raise HTTPException(status_code=404, detail="Campo no encontrado")
+    db_field.name = field.name
+    db_field.field_type = field.field_type
+    db_field.options = field.options
+    db.commit()
+    db.refresh(db_field)
+    return db_field
+
 @app.post("/records/{table_id}", response_model=schemas.AppRecord, tags=["records"])
 def api_add_record(table_id: int, record: schemas.AppRecordCreate, request: Request, db: Session = Depends(database.get_db)):
     user = get_current_user(request, db)
     if not user or user.role not in ['admin', 'manager']:
         raise HTTPException(status_code=403, detail="Permisos insuficientes para crear registros manually")
-    # Auto-generate COD if it's the Inventario table and payload is missing it
-    # We will grab all AppFields for this table to see if COD exists
-    fields = db.query(models.AppField).filter(models.AppField.table_id == table_id).all()
-    cod_field = next((f for f in fields if f.name.upper() == 'COD'), None)
     
-    if cod_field and not record.data.get(cod_field.name):
-        record.data[cod_field.name] = "COD-" + str(uuid.uuid4())[:8].upper()
+    # Trabajar con una copia explícita del dict para evitar problemas con Pydantic v2
+    data_copy = dict(record.data)
 
-    db_record = models.AppRecord(data=record.data, table_id=table_id)
+    # Consultar los campos de la tabla para saber cuáles son auto-generados
+    fields = db.query(models.AppField).filter(models.AppField.table_id == table_id).all()
+
+    # Auto-generate COD
+    cod_field = next((f for f in fields if f.name.upper() == 'COD'), None)
+    if cod_field and not data_copy.get(cod_field.name):
+        data_copy[cod_field.name] = "COD-" + str(uuid.uuid4())[:8].upper()
+
+    # Auto-generate ID
+    id_field = next((f for f in fields if f.name.upper() == 'ID'), None)
+    if id_field and not data_copy.get(id_field.name):
+        data_copy[id_field.name] = str(uuid.uuid4())[:8].upper()
+
+    db_record = models.AppRecord(data=data_copy, table_id=table_id)
     db.add(db_record)
     db.commit()
     db.refresh(db_record)

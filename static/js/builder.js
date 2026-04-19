@@ -4,22 +4,35 @@ document.addEventListener('DOMContentLoaded', () => {
     let fieldCount = 0;
     let draggedData = null;
 
+    window.appIsDirty = false; // true cuando hay campos en el canvas sin guardar
+    window.appLeaveMsg = '¿Seguro que quieres salir? Los cambios del constructor no se guardarán.';
+
+    // Interceptar navegación del browser (F5, cerrar tab, escribir URL)
+    window.addEventListener('beforeunload', (e) => {
+        if (window.appIsDirty) {
+            e.preventDefault();
+            e.returnValue = window.appLeaveMsg;
+        }
+    });
+
+
+
     // ── Sidebar items: dragstart / dragend / click ───────────────────────────
     draggables.forEach(draggable => {
         draggable.addEventListener('dragstart', (e) => {
-            draggedData = {
-                type:  draggable.dataset.type,
+            const dataObj = {
+                type: draggable.dataset.type,
                 label: draggable.querySelector('span').innerText,
-                icon:  draggable.querySelector('i').getAttribute('data-lucide')
+                icon: draggable.dataset.icon || 'type'
             };
-            e.dataTransfer.setData('text/plain', draggable.dataset.type);
+            draggedData = dataObj;
+            e.dataTransfer.effectAllowed = 'copy';
+            e.dataTransfer.setData('text/plain', JSON.stringify(dataObj));
             draggable.classList.add('dragging');
         });
 
         draggable.addEventListener('dragend', () => {
             draggable.classList.remove('dragging');
-            // NO borramos draggedData aquí: en Chrome el drop llega primero,
-            // pero en Brave/Firefox puede llegar después. Lo borramos en drop.
         });
 
         // Click como alternativa táctil / accesible
@@ -27,45 +40,72 @@ document.addEventListener('DOMContentLoaded', () => {
             addFieldToCanvas(
                 draggable.dataset.type,
                 draggable.querySelector('span').innerText,
-                draggable.querySelector('i').getAttribute('data-lucide')
+                draggable.dataset.icon || 'type'
             );
         });
     });
 
     // ── Document-level dragover ───────────────────────────────────────────────
-    // PROBLEMA RAÍZ: cuando ya hay tarjetas dentro del drop-zone, el cursor
-    // aterriza en un HIJO (field-config-card), no en el drop-zone en sí.
-    // Ese hijo no tiene preventDefault() → el navegador bloquea el drop con 🚫.
-    // Solución: capturar en document y comprobar si el target está dentro del zone.
-    document.addEventListener('dragover', (e) => {
-        if (dropZone.contains(e.target) || e.target === dropZone) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'copy';
-            dropZone.classList.add('drop-zone-active');
-        } else {
+    // Usamos stopPropagation y preventDefault en dragenter y dragover 
+    // para indicar al navegador que este elemento es definitivamente un objetivo de drop válido.
+    dropZone.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('drop-zone-active');
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+    });
+
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!dropZone.contains(e.relatedTarget)) {
             dropZone.classList.remove('drop-zone-active');
         }
     });
 
-    document.addEventListener('dragleave', (e) => {
-        // Quitar highlight solo cuando abandonamos completamente el drop-zone
-        if (e.target === dropZone && !dropZone.contains(e.relatedTarget)) {
-            dropZone.classList.remove('drop-zone-active');
-        }
-    });
-
-    document.addEventListener('drop', (e) => {
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         dropZone.classList.remove('drop-zone-active');
-        if (dropZone.contains(e.target) || e.target === dropZone) {
-            e.preventDefault();
-            if (!draggedData) return;
+
+        let parsedData = null;
+        try {
+            let dataStr = e.dataTransfer.getData('text/plain');
+            if (dataStr) {
+                // If the user drops pure text from somewhere else, it might fail here, which is fine
+                parsedData = JSON.parse(dataStr);
+            }
+        } catch (err) {
+            console.error("Error parsing drag data, using fallback", err);
+        }
+
+        if (parsedData && parsedData.type) {
+            addFieldToCanvas(parsedData.type, parsedData.label, parsedData.icon);
+        } else if (draggedData) {
             addFieldToCanvas(draggedData.type, draggedData.label, draggedData.icon);
         }
+
+        // Clean up
         draggedData = null;
     });
 
     // ── Agregar tarjeta al canvas ─────────────────────────────────────────────
     function addFieldToCanvas(type, label, iconName) {
+        window.appIsDirty = true; // marcar como modificado
+        // Limpieza de campos vacíos antes de agregar uno nuevo
+        const existingCards = dropZone.querySelectorAll('.field-config-card');
+        existingCards.forEach(card => {
+            const nameInput = card.querySelector('.field-name-input');
+            if (nameInput && nameInput.value.trim() === '') {
+                card.remove();
+            }
+        });
+
         fieldCount++;
 
         const emptyState = dropZone.querySelector('.empty-state');
@@ -75,6 +115,16 @@ document.addEventListener('DOMContentLoaded', () => {
         fieldCard.className = 'field-config-card glass-panel';
         fieldCard.dataset.type = type;
         fieldCard.id = `field-${fieldCount}`;
+
+        // Sugerencias pre-llenadas por tipo de campo
+        const SUGGESTED_OPTIONS = {
+            'text': 'Ej: Nombre, Email, Dirección',
+            'number': 'Ej: 0, 10, 100',
+            'date': 'Ej: Fecha de Ingreso, Fecha de Despido',
+            'select': ''
+        };
+        const defaultOptions = SUGGESTED_OPTIONS[type] || '';
+        const isSelect = type === 'select';
 
         fieldCard.innerHTML = `
             <div class="field-drag-handle">
@@ -86,8 +136,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <input type="text" class="field-name-input input-neumorphic"
                        placeholder="Nombre de la columna..." value="">
+                <input type="text" class="field-options-input input-neumorphic"
+                       placeholder="${isSelect ? 'Ej: Aprobado, Rechazado (separadas por coma)' : 'Opciones predeterminadas...'}"
+                       value="${defaultOptions}"
+                       style="margin-top: 8px; font-size: 0.85rem; ${!isSelect ? 'opacity: 0.7; pointer-events: none;' : ''}" ${!isSelect ? 'readonly' : ''}>
             </div>
-            <button class="btn-link delete-field"
+            <button class="btn-link delete-field" style="color: var(--danger);"
                     onclick="this.parentElement.remove(); checkEmptyState();">
                 <i data-lucide="trash-2"></i>
             </button>
@@ -95,6 +149,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dropZone.appendChild(fieldCard);
         lucide.createIcons();
+
+        // Focus en el nuevo input automáticamente
+        const nameInput = fieldCard.querySelector('.field-name-input');
+        const optionsInput = fieldCard.querySelector('.field-options-input');
+        
+        setTimeout(() => nameInput.focus(), 50);
+
+        // Inteligencia básica: Si el usuario escribe "Rol" o "Role", sugerir opciones de manager/empleado
+        nameInput.addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase().trim();
+            if ((val === 'rol' || val === 'role' || val === 'cargo') && !optionsInput.value) {
+                optionsInput.value = "manager, empleado";
+                // Si es un campo de texto, avisar sutilmente o cambiar a select?
+                // Mejor simplemente llenar las opciones por si decide cambiarlo a Selección
+            }
+        });
     }
 });
 
@@ -114,7 +184,6 @@ function checkEmptyState() {
 async function saveTable() {
     const name = document.getElementById('table-name').value.trim();
     const description = document.getElementById('table-description').value.trim();
-    const fieldInputs = document.querySelectorAll('.field-name-input');
     const fieldCards = document.querySelectorAll('.field-config-card');
 
     if (!name) {
@@ -132,7 +201,10 @@ async function saveTable() {
 
     fieldCards.forEach(card => {
         const input = card.querySelector('.field-name-input');
+        const optInput = card.querySelector('.field-options-input');
         const fieldName = input.value.trim();
+        const optionsVal = optInput ? optInput.value.trim() : null;
+
         if (!fieldName) {
             input.style.borderColor = 'var(--danger)';
             valid = false;
@@ -140,7 +212,8 @@ async function saveTable() {
             input.style.borderColor = '';
             fields.push({
                 name: fieldName,
-                field_type: card.dataset.type
+                field_type: card.dataset.type,
+                options: optionsVal || null
             });
         }
     });
@@ -170,6 +243,7 @@ async function saveTable() {
 
         if (response.ok) {
             const result = await response.json();
+            window.appIsDirty = false; // guardado exitoso, no pedir confirmación al salir
             alert("¡Tabla creada con éxito!");
             window.location.href = '/tables-view';
         } else {

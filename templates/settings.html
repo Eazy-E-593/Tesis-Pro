@@ -33,7 +33,12 @@
             <span class="slider round"></span>
         </label>
     </div>
-    <div style="margin-top: 32px; display: flex; justify-content: flex-end;">
+    <div style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px;">
+        {% if user.role in ['admin', 'manager'] %}
+        <button class="btn btn-secondary" onclick="window.location.href='/register'" style="display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="user-plus" style="width: 16px;"></i> Añadir Usuario
+        </button>
+        {% endif %}
         <button class="btn btn-primary" onclick="logout()">Cerrar Sesión</button>
     </div>
 </div>

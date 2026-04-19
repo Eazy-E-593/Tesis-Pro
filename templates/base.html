@@ -27,6 +27,16 @@
                 <i data-lucide="database" class="logo-icon"></i>
                 <h2>MicroBase</h2>
             </div>
+            {% if user %}
+            <div style="padding: 6px 20px 10px; display: flex; align-items: center; gap: 7px;">
+                <div
+                    style="width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success); flex-shrink:0;">
+                </div>
+                <span
+                    style="font-size: 0.85rem; color: var(--text-muted); text-transform: capitalize; font-weight: 500;">{{
+                    user.role }}</span>
+            </div>
+            {% endif %}
             <nav class="sidebar-nav" id="sidebar-nav">
                 <ul>
                     <li class="nav-section-title">PRINCIPAL</li>
@@ -113,16 +123,7 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="main-content" style="position: relative;">
-            {% if user %}
-            <div
-                style="position: absolute; top: 20px; right: 24px; background: rgba(0,0,0,0.2); padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border-glass); font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; z-index: 100; font-weight: 500;">
-                <div
-                    style="width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success);">
-                </div>
-                <span style="text-transform: capitalize;">{{ user.role }}</span>
-            </div>
-            {% endif %}
+        <main class="main-content">
             {% block content %}{% endblock %}
         </main>
     </div>

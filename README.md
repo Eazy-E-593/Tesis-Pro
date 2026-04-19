@@ -53,5 +53,5 @@ Posteriormente, navega a `http://127.0.0.1:8000/dashboard` en tu navegador.
 
 ## 🗺️ Futuros Desarrollos (Roadmap v2.0)
 - Generación de Tickets y Facturas Digitales en formato PDF exportables e imprimibles bajo estándares comerciales.
-- Multitenancy: Creación de instancias modulares para albergar una rama corporativa multi-sucursal y diseñador de Roles Customizados sin tocar el código fuente.
+- Multitenancy: Creación de instancias modulares para albergar una rama corporativa multi-sucursal y diseñador de Roles Customizados.
 - Migración de SQLite a infraestructura PostgreSQL de producción.
