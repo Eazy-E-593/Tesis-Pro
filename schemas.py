@@ -71,6 +71,9 @@ class AppRecord(AppRecordBase):
 class MovementItem(BaseModel):
     record_id: int
     quantity_change: float
+    name: Optional[str] = None
+    price: Optional[float] = 0.0
+    subtotal: Optional[float] = 0.0
 
 class MovementPayload(BaseModel):
     type: str # 'Venta' or 'Compra'

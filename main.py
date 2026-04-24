@@ -53,6 +53,18 @@ def init_db(db: Session):
             models.AppField(table_id=emp.id, name="Rol", field_type="select", options="manager, empleado"),
             models.AppField(table_id=emp.id, name="Salario", field_type="number")
         ])
+
+        # Proveedores
+        prov = models.AppTable(name="Proveedores", description="Gestión de suministradores")
+        db.add(prov)
+        db.commit()
+        db.refresh(prov)
+        db.add_all([
+            models.AppField(table_id=prov.id, name="Nombre de Empresa", field_type="text"),
+            models.AppField(table_id=prov.id, name="Contacto", field_type="text"),
+            models.AppField(table_id=prov.id, name="RUC / NIT", field_type="text"),
+            models.AppField(table_id=prov.id, name="Categoría", field_type="select", options="Alimentos, Bebidas, Embalaje, Otros")
+        ])
         
         db.commit()
 
@@ -132,6 +144,18 @@ async def create_table_page(request: Request, db: Session = Depends(database.get
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
     tables = db.query(models.AppTable).all()
     return templates.TemplateResponse("create_table.html", {"request": request, "user": user, "tables": tables})
+
+@app.get("/ticket/{audit_id}", response_class=HTMLResponse, include_in_schema=False)
+async def ticket_view(audit_id: int, request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    
+    audit = db.query(models.AppAudit).filter(models.AppAudit.id == audit_id).first()
+    if not audit or not audit.details:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado o no tiene detalles.")
+        
+    return templates.TemplateResponse("ticket.html", {"request": request, "user": user, "audit": audit})
 
 # --- APIs ---
 @app.post("/auth/check-email", tags=["auth"])
@@ -380,16 +404,19 @@ def api_inventory_movement(payload: schemas.MovementPayload, request: Request, d
         
     first_item = db.query(models.AppRecord).filter(models.AppRecord.id == payload.items[0].record_id).first() if payload.items else None
     
+    label_sujeto = "Proveedor" if payload.type == "Compra" else "Cliente"
     audit = models.AppAudit(
-        table_id=first_item.table_id if first_item else 0,
-        record_id=0,
+        table_id=first_item.table_id if first_item else None,
+        record_id=None,
         employee_code=user.employee_code,
-        action=f"{payload.type} | Cliente: {payload.client_name or 'Consumidor Final'} | Total: ${payload.total:.2f}"
+        action=f"{payload.type} | {label_sujeto}: {payload.client_name or 'Consumidor Final'} | Total: ${payload.total:.2f}",
+        details=payload.model_dump()
     )
     db.add(audit)
         
     db.commit()
-    return {"ok": True, "processed": len(payload.items)}
+    db.refresh(audit)
+    return {"ok": True, "processed": len(payload.items), "audit_id": audit.id}
 
 @app.get("/api/clients/suggest", tags=["inventory"])
 def api_clients_suggest(db: Session = Depends(database.get_db)):
@@ -397,7 +424,19 @@ def api_clients_suggest(db: Session = Depends(database.get_db)):
     names = []
     if t:
         for r in t.records:
-            n = r.data.get('Nombre')
+            # Intentar buscar en 'Nombre' o 'Nombre de Empresa'
+            n = r.data.get('Nombre') or r.data.get('Nombre Completo')
+            if n and n not in names:
+                names.append(n)
+    return names
+
+@app.get("/api/suppliers/suggest", tags=["inventory"])
+def api_suppliers_suggest(db: Session = Depends(database.get_db)):
+    t = db.query(models.AppTable).filter(models.AppTable.name.ilike('proveedor%')).first()
+    names = []
+    if t:
+        for r in t.records:
+            n = r.data.get('Nombre de Empresa') or r.data.get('Nombre')
             if n and n not in names:
                 names.append(n)
     return names

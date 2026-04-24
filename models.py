@@ -22,6 +22,7 @@ class AppAudit(Base):
     record_id = Column(Integer, ForeignKey("app_records.id", ondelete="CASCADE"))
     employee_code = Column(String)
     action = Column(String)
+    details = Column(JSON, nullable=True)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
 class AppTable(Base):
