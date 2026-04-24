@@ -22,12 +22,13 @@
                     <th>Operador / COD</th>
                     <th>Detalle de la Operación (Facturación)</th>
                     <th style="text-align: right;">Fecha y Hora</th>
+                    <th style="text-align: center; width: 60px;">Acción</th>
                 </tr>
             </thead>
             <tbody>
                 {% if audits|length == 0 %}
                 <tr>
-                    <td colspan="4" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
                         <i data-lucide="inbox" style="width: 48px; height: 48px; opacity: 0.5; margin-bottom: 12px;"></i><br>
                         Aún no se ha procesado ninguna compra o venta en el sistema.
                     </td>
@@ -56,6 +57,13 @@
                                 {{ a.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
                             {% else %}
                                 N/A
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center;">
+                            {% if a.details %}
+                            <button onclick="window.open('/ticket/{{ a.id }}', '_blank', 'width=400,height=600')" title="Imprimir Ticket" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;">
+                                <i data-lucide="printer" style="width: 18px; height: 18px; color: var(--primary);"></i>
+                            </button>
                             {% endif %}
                         </td>
                     </tr>

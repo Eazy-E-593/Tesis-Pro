@@ -85,6 +85,7 @@ function renderTable(fields, records) {
     fields.forEach(field => {
         let th = document.createElement('th');
         let role = typeof currentUserRole !== 'undefined' ? currentUserRole : 'empleado';
+        let actionHtml = '';
         if (role === 'admin') {
             actionHtml = `<button class="delete-row-btn" onclick="deleteColumn(${field.id})" style="padding: 0; outline: none; margin-left: 8px;">
                 <i data-lucide="x" style="width: 14px; height: 14px;"></i>
@@ -155,7 +156,7 @@ function renderTable(fields, records) {
                         input.appendChild(option);
                     });
                 }
-                
+
                 if (!isNewRow) {
                     input.disabled = true; // select usa disabled, no readOnly
                     input.classList.add('locked-input');
@@ -423,7 +424,7 @@ async function saveRow(recordId) {
             saveBtn.style.backgroundColor = 'var(--success)';
             saveBtn.innerHTML = '<i data-lucide="check" style="width: 14px;"></i> Listo';
             saveBtn.style.opacity = '1';
-            
+
             // Esperar un momento para que el usuario vea el "Listo" y luego refrescar la fila
             setTimeout(() => {
                 loadTableSilently();
@@ -479,7 +480,7 @@ async function submitNewColumn() {
 }
 
 // Oculta/Muestra las opciones sugeridas según el tipo elegido
-window.toggleSuggestedOptions = function(selectEl) {
+window.toggleSuggestedOptions = function (selectEl) {
     const parentContainer = selectEl.closest('div[style]').parentElement;
     const optionsContainer = parentContainer.querySelector('.options-container');
     if (optionsContainer) {
@@ -791,17 +792,21 @@ function applyZoom() {
 // ---- Movement / POS Logic ----
 let cartItems = {};
 
-async function loadClientsDatalist() {
+async function loadSuggestions() {
+    let typeEl = document.querySelector('input[name="mov-type"]:checked');
+    let type = typeEl ? typeEl.value : "Venta";
+    let endpoint = type === "Compra" ? '/api/suppliers/suggest' : '/api/clients/suggest';
+
     try {
-        const res = await fetch('/api/clients/suggest');
+        const res = await fetch(endpoint);
         if (!res.ok) return;
-        const clients = await res.json();
+        const names = await res.json();
         const dl = document.getElementById('clients-sug');
         if (dl) {
             dl.innerHTML = '';
-            clients.forEach(c => {
+            names.forEach(n => {
                 let opt = document.createElement('option');
-                opt.value = c;
+                opt.value = n;
                 dl.appendChild(opt);
             });
         }
@@ -816,7 +821,7 @@ function openMovementPanel() {
     document.getElementById('movement-panel').classList.add('open');
     document.getElementById('inventory-search').value = '';
     document.getElementById('search-results').innerHTML = '';
-    loadClientsDatalist();
+    loadSuggestions();
     renderCart();
 }
 
@@ -890,6 +895,7 @@ function toggleMovementType() {
         btnProcess.className = "btn btn-warning btn-block";
     }
     lucide.createIcons();
+    loadSuggestions();
     renderCart(); // Re-render to hide/show price items
 }
 
@@ -945,8 +951,18 @@ async function processMovement() {
     let type = typeEl ? typeEl.value : "Venta";
     let clientName = document.getElementById('mov-client').value.trim();
 
-    let payload = Object.values(cartItems).map(i => ({ record_id: i.record.id, quantity_change: i.qty }));
-    if (payload.length === 0) return alert("Ponga elementos de inventario en el panel para registrar.");
+    let payload = Object.values(cartItems).map(i => {
+        let precioVal = i.record.data['Precio por Unidad'] || i.record.data['Precio'] || i.record.data['precio'] || 0;
+        let precio = parseFloat(precioVal) || 0;
+        return {
+            record_id: i.record.id,
+            quantity_change: i.qty,
+            name: i.record.data.Nombre || i.record.data.COD || 'Item',
+            price: precio,
+            subtotal: precio * i.qty
+        };
+    });
+    if (payload.length === 0) return alert("Producto Inexistente, Por favor escoja un producto valido");
 
     let totalText = document.getElementById('cart-total').textContent.replace('$', '');
     let subtotalText = document.getElementById('cart-subtotal').textContent.replace('$', '');
@@ -966,10 +982,17 @@ async function processMovement() {
             })
         });
         if (res.ok) {
+            const data = await res.json();
             cartItems = {};
             document.getElementById('mov-client').value = '';
             closeMovementPanel();
             loadTableSilently();
+            
+            // Abrir Ticket
+            if (data.audit_id) {
+                window.open('/ticket/' + data.audit_id, '_blank', 'width=400,height=600');
+            }
+            
             alert(`¡${type} procesada con éxito! El movimiento quedó registrado integralmente en la base de datos de Auditoría.`);
         }
     } catch (e) {
@@ -1027,11 +1050,13 @@ async function openAuditsModal() {
                 dateStr = d.toLocaleString();
             }
 
+            let printBtn = a.details ? `<button onclick="window.open('/ticket/${a.id}', '_blank', 'width=400,height=600')" title="Imprimir" style="background: transparent; border: none; cursor: pointer; color: var(--primary);"><i data-lucide="printer" style="width:16px;"></i></button>` : '';
             tr.innerHTML = `
                 <td>#${a.id}</td>
                 <td><span class="badge" style="background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">${a.employee_code || '?'}</span></td>
                 <td>${actionHtml}</td>
                 <td style="font-size: 0.85em; color: var(--text-muted);">${dateStr}</td>
+                <td style="text-align:center;">${printBtn}</td>
             `;
             tbody.appendChild(tr);
         });
