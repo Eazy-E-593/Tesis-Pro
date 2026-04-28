@@ -187,12 +187,12 @@ async function saveTable() {
     const fieldCards = document.querySelectorAll('.field-config-card');
 
     if (!name) {
-        alert("Por favor, ingresa un nombre para la tabla.");
+        showToast("Por favor, ingresa un nombre para la tabla.", "warning");
         return;
     }
 
     if (fieldCards.length === 0) {
-        alert("La tabla debe tener al menos una columna.");
+        showToast("La tabla debe tener al menos una columna.", "warning");
         return;
     }
 
@@ -219,7 +219,7 @@ async function saveTable() {
     });
 
     if (!valid) {
-        alert("Por favor, asigna un nombre a todas las columnas.");
+        showToast("Por favor, asigna un nombre a todas las columnas.", "warning");
         return;
     }
 
@@ -243,19 +243,21 @@ async function saveTable() {
 
         if (response.ok) {
             const result = await response.json();
-            window.appIsDirty = false; // guardado exitoso, no pedir confirmación al salir
-            alert("¡Tabla creada con éxito!");
-            window.location.href = '/tables-view';
+            window.appIsDirty = false; 
+            showToast("¡Tabla creada con éxito!", "success");
+            setTimeout(() => {
+                window.location.href = '/tables-view';
+            }, 1000);
         } else {
             const error = await response.json();
-            alert("Error: " + (error.detail || "No se pudo crear la tabla"));
+            showToast("Error: " + (error.detail || "No se pudo crear la tabla"), "error");
             btn.disabled = false;
             btn.innerHTML = '<i data-lucide="save"></i> Guardar Tabla';
             lucide.createIcons();
         }
     } catch (err) {
         console.error(err);
-        alert("Error de conexión");
+        showToast("Error de conexión", "error");
         btn.disabled = false;
         btn.innerHTML = '<i data-lucide="save"></i> Guardar Tabla';
         lucide.createIcons();

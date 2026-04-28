@@ -152,17 +152,18 @@
             <input type="text" id="mov-client" list="clients-sug" class="input-neumorphic" placeholder="Selecciona o escribe..." style="width: 100%;">
         </div>
         
-        <div style="margin-bottom: 10px;">
+        <div style="margin-bottom: 10px; position: relative;">
             <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 6px; font-weight: bold;">
                 <i data-lucide="search" style="width: 12px; margin-right: 4px;"></i> Buscar y Agregar al Carrito
             </label>
-            <input type="search" id="inventory-search" class="input-neumorphic" placeholder="Busca producto por Nombre o COD..." onkeyup="searchInventory()" style="width: 100%; border-color: var(--primary);">
-            <div id="search-results" class="search-results" style="margin-top: 5px;"></div>
+            <input type="search" id="inventory-search" class="input-neumorphic" placeholder="Busca producto por Nombre o COD..." onkeyup="searchInventory()" onfocus="searchInventory()" style="width: 100%; border-color: var(--primary);">
+            <div id="search-results" class="search-results" style="margin-top: 5px; position: absolute; width: 100%; z-index: 100; display: none;"></div>
         </div>
 
-        <h3 style="margin-top: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Carrito /
-            Transacción</h3>
-        <div id="cart-items" class="cart-items"></div>
+        <div id="cart-section">
+            <h3 style="margin-top: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Carrito / Transacción</h3>
+            <div id="cart-items" class="cart-items"></div>
+        </div>
     </div>
     <div class="panel-footer" style="background: rgba(0,0,0,0.2);">
         <div id="cart-financials">

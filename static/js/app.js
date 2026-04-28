@@ -335,7 +335,7 @@ async function addRow() {
     // Bloquear si ya hay una fila nueva sin guardar
     const pendingSaveBtn = document.querySelector('#table-body .save-btn');
     if (pendingSaveBtn) {
-        alert("Completa y guarda la fila actual antes de crear una nueva.");
+        showToast("Completa y guarda la fila actual antes de crear una nueva.", "warning");
         const firstInput = pendingSaveBtn.closest('tr')?.querySelector('.cell-input:not([title="Generado automáticamente"])');
         if (firstInput) firstInput.focus();
         return;
@@ -388,7 +388,7 @@ async function saveRow(recordId) {
         // Validación Anti-Vacíos (excluir campos auto-generados)
         const AUTO_FIELDS_SAVE = ['COD', 'ID'];
         if (String(val).trim() === '' && !AUTO_FIELDS_SAVE.includes(f.name.toUpperCase())) {
-            alert(`El campo "${f.name}" es obligatorio y no puede quedar vacío.`);
+            showToast(`El campo "${f.name}" es obligatorio.`, "warning");
             isValid = false;
         }
 
@@ -445,6 +445,35 @@ function showAddColumnModal() {
     document.getElementById('add-column-modal').classList.add('active');
 }
 
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    
+    let icon = 'info';
+    if (type === 'success') icon = 'check-circle';
+    if (type === 'error') icon = 'alert-circle';
+    if (type === 'warning') icon = 'alert-triangle';
+
+    toast.innerHTML = `
+        <div class="toast-icon">
+            <i data-lucide="${icon}" style="width: 20px; height: 20px;"></i>
+        </div>
+        <div class="toast-content">${message}</div>
+    `;
+
+    container.appendChild(toast);
+    lucide.createIcons();
+
+    // Auto-remove
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 400);
+    }, 4000);
+}
+
 function closeModal(id) {
     document.getElementById(id).classList.remove('active');
     const nameEl = document.getElementById('new-col-name');
@@ -461,7 +490,7 @@ async function submitNewColumn() {
     let colOptions = document.getElementById('new-col-options')?.value.trim() || null;
 
     if (!colName) {
-        alert("El nombre de la columna no puede estar vacío");
+        showToast("El nombre de la columna no puede estar vacío", "warning");
         return;
     }
 
@@ -503,7 +532,7 @@ window.toggleSuggestedOptions = function (selectEl) {
 let _pendingFieldOrder = null; // null = no hay orden pendiente
 
 function openManageColumnsModal() {
-    if (!currentTableId) return alert("Selecciona una tabla primero.");
+    if (!currentTableId) return showToast("Selecciona una tabla primero.", "info");
 
     _pendingFieldOrder = null; // reset al abrir
 
@@ -629,7 +658,7 @@ async function saveAllColumns() {
         if (nameInput && !nameInput.value.trim()) {
             nameInput.style.borderColor = 'var(--danger)';
             nameInput.focus();
-            alert("Hay columnas sin nombre. Completa todos los campos antes de guardar.");
+            showToast("Hay columnas sin nombre. Completa todos los campos antes de guardar.", "warning");
             return;
         }
         if (nameInput) nameInput.style.borderColor = '';
@@ -689,7 +718,7 @@ async function saveAllColumns() {
 
     } catch (e) {
         console.error('saveAllColumns error:', e);
-        alert('No se pudieron guardar los cambios:\n' + e.message);
+        showToast('No se pudieron guardar los cambios: ' + e.message, "error");
         btn.style.background = 'var(--danger)';
         btn.innerHTML = '<i data-lucide="x"></i> Error';
         btn.disabled = false;
@@ -726,11 +755,11 @@ async function deleteCurrentTable() {
     try {
         const res = await fetch(`/tables/${currentTableId}`, { method: 'DELETE' });
         if (res.ok) {
-            alert("Tabla eliminada con éxito.");
+            showToast("Tabla eliminada con éxito.", "success");
             window.location.href = "/dashboard";
         } else {
             const data = await res.json();
-            alert("Error: " + data.detail);
+            showToast("Error: " + data.detail, "error");
         }
     } catch (e) {
         console.error("Falló la eliminación de la tabla", e);
@@ -797,30 +826,48 @@ async function loadSuggestions() {
     let type = typeEl ? typeEl.value : "Venta";
     let endpoint = type === "Compra" ? '/api/suppliers/suggest' : '/api/clients/suggest';
 
+    // 1. Cargar Clientes/Proveedores
     try {
         const res = await fetch(endpoint);
-        if (!res.ok) return;
-        const names = await res.json();
-        const dl = document.getElementById('clients-sug');
-        if (dl) {
-            dl.innerHTML = '';
-            names.forEach(n => {
-                let opt = document.createElement('option');
-                opt.value = n;
-                dl.appendChild(opt);
-            });
+        if (res.ok) {
+            const names = await res.json();
+            const dl = document.getElementById('clients-sug');
+            if (dl) {
+                dl.innerHTML = '';
+                names.forEach(n => {
+                    let opt = document.createElement('option');
+                    opt.value = n;
+                    dl.appendChild(opt);
+                });
+            }
         }
     } catch (e) { }
+
+    // 2. Cargar Inventario en el datalist (si estamos en la tabla correcta)
+    const invDl = document.getElementById('inventory-sug');
+    if (invDl && currentTableRecords) {
+        invDl.innerHTML = '';
+        currentTableRecords.forEach(r => {
+            const name = r.data.Nombre || 'Sin nombre';
+            const cod = r.data.COD || '';
+            const stock = r.data.Cantidad || 0;
+            let opt = document.createElement('option');
+            opt.value = `${name} (${cod})`;
+            opt.dataset.id = r.id;
+            invDl.appendChild(opt);
+        });
+    }
 }
 
 function openMovementPanel() {
     const tableName = document.getElementById('current-table-name').innerText.toLowerCase();
     if (!tableName.includes('inventario')) {
-        return alert("El panel de movimientos está diseñado para usarlo en el Inventario para calcular cantidades automáticamente.");
+        return showToast("El panel de movimientos está diseñado para usarlo en el Inventario.", "info");
     }
     document.getElementById('movement-panel').classList.add('open');
     document.getElementById('inventory-search').value = '';
-    document.getElementById('search-results').innerHTML = '';
+    const resultsDiv = document.getElementById('search-results');
+    if (resultsDiv) resultsDiv.innerHTML = '';
     loadSuggestions();
     renderCart();
 }
@@ -832,27 +879,74 @@ function closeMovementPanel() {
 function searchInventory() {
     const q = document.getElementById('inventory-search').value.toLowerCase();
     const resDiv = document.getElementById('search-results');
+    const cartSection = document.getElementById('cart-section');
     resDiv.innerHTML = '';
-    if (!q) return;
-
+    
     const results = currentTableRecords.filter(r => {
-        let name = r.data.Nombre || '';
-        let sku = r.data.COD || '';
-        return name.toLowerCase().includes(q) || sku.toLowerCase().includes(q);
-    });
+        if (!q) return true;
+        let name = String(r.data.Nombre || '').toLowerCase();
+        let sku = String(r.data.COD || '').toLowerCase();
+        return name.includes(q) || sku.includes(q);
+    }).slice(0, 15);
 
-    results.forEach(r => {
-        let div = document.createElement('div');
-        div.className = 'search-item';
-        div.style.padding = '8px 12px';
-        div.style.background = 'var(--bg-dark)';
-        div.style.borderBottom = '1px solid var(--border-glass)';
-        div.style.cursor = 'pointer';
-        div.innerHTML = `<span>${r.data.Nombre} <small style="color:var(--text-muted)">${r.data.COD || ''}</small></span> <span style="font-weight:bold; color:var(--primary)">${r.data.Cantidad || 0} disp.</span>`;
-        div.onclick = () => addToCart(r);
-        resDiv.appendChild(div);
-    });
+    if (results.length > 0) {
+        resDiv.style.display = 'block';
+        resDiv.style.background = 'var(--bg-card)'; // Fondo sólido
+        resDiv.style.borderRadius = '12px';
+        resDiv.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+        
+        // Ocultar sección del carrito para que no se vea amontonado
+        if (cartSection) cartSection.style.display = 'none';
+
+        results.forEach(r => {
+            let div = document.createElement('div');
+            div.className = 'search-item';
+            div.style.padding = '12px';
+            div.style.background = 'transparent';
+            div.style.borderBottom = '1px solid var(--border-glass)';
+            div.style.cursor = 'pointer';
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.alignItems = 'center';
+            div.style.transition = 'background 0.2s';
+            
+            div.onmouseover = () => div.style.background = 'rgba(255,255,255,0.05)';
+            div.onmouseout = () => div.style.background = 'transparent';
+            
+            div.innerHTML = `
+                <div>
+                    <strong style="color:var(--text-main); display:block;">${r.data.Nombre}</strong>
+                    <small style="color:var(--text-muted)">${r.data.COD || ''}</small>
+                </div>
+                <div style="text-align:right;">
+                    <span style="font-weight:bold; color:var(--primary); display:block;">${r.data.Cantidad || 0} disp.</span>
+                    <small style="color:var(--success)">$${parseFloat(r.data['Precio por Unidad'] || r.data['Precio'] || 0).toFixed(2)}</small>
+                </div>
+            `;
+            div.onclick = () => {
+                addToCart(r);
+                resDiv.style.display = 'none';
+                if (cartSection) cartSection.style.display = 'block';
+                document.getElementById('inventory-search').value = '';
+            };
+            resDiv.appendChild(div);
+        });
+    } else {
+        resDiv.style.display = 'none';
+        if (cartSection) cartSection.style.display = 'block';
+    }
 }
+
+// Cerrar resultados al hacer clic fuera y restaurar carrito
+document.addEventListener('click', (e) => {
+    const searchInput = document.getElementById('inventory-search');
+    const resDiv = document.getElementById('search-results');
+    const cartSection = document.getElementById('cart-section');
+    if (searchInput && resDiv && !searchInput.contains(e.target) && !resDiv.contains(e.target)) {
+        resDiv.style.display = 'none';
+        if (cartSection) cartSection.style.display = 'block';
+    }
+});
 
 function addToCart(record) {
     if (!cartItems[record.id]) {
@@ -962,7 +1056,7 @@ async function processMovement() {
             subtotal: precio * i.qty
         };
     });
-    if (payload.length === 0) return alert("Producto Inexistente, Por favor escoja un producto valido");
+    if (payload.length === 0) return showToast("Por favor, agrega al menos un producto al carrito.", "warning");
 
     let totalText = document.getElementById('cart-total').textContent.replace('$', '');
     let subtotalText = document.getElementById('cart-subtotal').textContent.replace('$', '');
@@ -993,7 +1087,7 @@ async function processMovement() {
                 window.open('/ticket/' + data.audit_id, '_blank', 'width=400,height=600');
             }
             
-            alert(`¡${type} procesada con éxito! El movimiento quedó registrado integralmente en la base de datos de Auditoría.`);
+            showToast(`¡${type} procesada con éxito! El movimiento quedó registrado en Auditoría.`, "success");
         }
     } catch (e) {
         console.error(e);
@@ -1070,8 +1164,8 @@ async function openAuditsModal() {
 
 async function checkEmail() {
     const email = document.getElementById('email-input').value;
-    if (!email) return alert("Por favor ingresa un correo");
-    if (!email.includes('@')) return alert("El correo debe llevar '@'");
+    if (!email) return showToast("Por favor ingresa un correo", "warning");
+    if (!email.includes('@')) return showToast("El correo debe llevar '@'", "warning");
 
     try {
         const res = await fetch('/auth/check-email', {
@@ -1087,7 +1181,7 @@ async function checkEmail() {
             document.getElementById('footer-default').style.display = 'block';
         } else {
             document.getElementById('footer-default').style.display = 'none';
-            alert("El correo no está registrado. Puedes registrarte debajo.");
+            showToast("El correo no está registrado.", "info");
         }
     } catch (e) {
         console.error(e);
@@ -1103,7 +1197,7 @@ function backToEmail() {
 async function login() {
     const email = document.getElementById('email-input').value;
     const password = document.getElementById('password-input').value;
-    if (!password) return alert("Ingresa tu contraseña");
+    if (!password) return showToast("Ingresa tu contraseña", "warning");
 
     try {
         const res = await fetch('/auth/login', {
@@ -1115,7 +1209,7 @@ async function login() {
             window.location.href = "/dashboard";
         } else {
             const err = await res.json();
-            alert("Error: " + (err.detail || "Credenciales inválidas"));
+            showToast("Error: " + (err.detail || "Credenciales inválidas"), "error");
         }
     } catch (e) {
         console.error(e);
@@ -1125,8 +1219,8 @@ async function login() {
 async function checkRegisterEmail() {
     const name = document.getElementById('reg-name').value;
     const email = document.getElementById('reg-email').value;
-    if (!name || !email) return alert("Por favor ingresa nombre y correo");
-    if (!email.includes('@')) return alert("El correo debe llevar '@'");
+    if (!name || !email) return showToast("Por favor ingresa nombre y correo", "warning");
+    if (!email.includes('@')) return showToast("El correo debe llevar '@'", "warning");
 
     try {
         const res = await fetch('/auth/check-email', {
@@ -1137,7 +1231,7 @@ async function checkRegisterEmail() {
         const data = await res.json();
 
         if (data.exists) {
-            alert("El correo ya está registrado con otra cuenta.");
+            showToast("El correo ya está registrado.", "warning");
         } else {
             document.getElementById('reg-step-1').style.display = 'none';
             document.getElementById('reg-step-2').style.display = 'block';
@@ -1149,7 +1243,7 @@ async function checkRegisterEmail() {
 
 function showConfirmPass() {
     const pass = document.getElementById('reg-pass').value;
-    if (!pass) return alert("Ingresa una contraseña");
+    if (!pass) return showToast("Ingresa una contraseña", "warning");
 
     document.getElementById('reg-step-2').style.display = 'none';
     document.getElementById('reg-step-3').style.display = 'block';
@@ -1169,8 +1263,8 @@ async function registerUser() {
     const confirm = document.getElementById('reg-confirm').value;
     const role = document.getElementById('reg-role').value;
 
-    if (!name || !email || !password) return alert("Llena todos los campos");
-    if (password !== confirm) return alert("Las contraseñas no coinciden");
+    if (!name || !email || !password) return showToast("Llena todos los campos", "warning");
+    if (password !== confirm) return showToast("Las contraseñas no coinciden", "error");
 
     try {
         const res = await fetch('/auth/register', {
@@ -1181,14 +1275,14 @@ async function registerUser() {
         if (res.ok) {
             const btnVolver = document.querySelector('button[onclick*="/dashboard"]');
             if (btnVolver) {
-                alert("¡Usuario registrado con éxito como " + role + "!");
+                showToast("¡Usuario registrado con éxito!", "success");
                 window.location.reload(); // Reiniciar formulario
             } else {
                 window.location.href = "/dashboard";
             }
         } else {
             const err = await res.json();
-            alert("Error: " + (err.detail || "No se pudo registrar"));
+            showToast("Error: " + (err.detail || "No se pudo registrar"), "error");
         }
     } catch (e) {
         console.error(e);

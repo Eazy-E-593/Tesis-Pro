@@ -24,6 +24,34 @@
     --transition-fast: 0.2s ease;
 }
 
+/* ---- Utility Classes ---- */
+.d-flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.align-center { align-items: center; }
+.align-start { align-items: flex-start; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.justify-end { justify-content: flex-end; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.gap-6 { gap: 24px; }
+.text-muted { color: var(--text-muted); }
+.text-primary { color: var(--primary); }
+.text-success { color: var(--success); }
+.text-danger { color: var(--danger); }
+.text-warning { color: var(--warning); }
+.fw-500 { font-weight: 500; }
+.fw-600 { font-weight: 600; }
+.mt-2 { margin-top: 8px; }
+.mt-4 { margin-top: 16px; }
+.mt-6 { margin-top: 24px; }
+.mt-8 { margin-top: 32px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-4 { margin-bottom: 16px; }
+.mb-6 { margin-bottom: 24px; }
+.w-full { width: 100%; }
+
 body.dark-theme {
     /* Dark Theme Variants (Oxford logic) */
     --bg-dark: #1b262c;
@@ -40,6 +68,31 @@ body.dark-theme {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+    /* Firefox support */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(124, 124, 124, 0.3) transparent;
+}
+
+/* Chrome, Safari and Edge */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(124, 124, 124, 0.2);
+    border-radius: 20px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(124, 124, 124, 0.4);
+    background-clip: content-box;
 }
 
 body {
@@ -885,6 +938,119 @@ input:checked+.slider:before {
     to {
         transform: rotate(360deg);
     }
+}
+
+/* ---- Dashboard Templates Panel ---- */
+#template-suggestion-panel {
+    padding: 40px 30px !important;
+    border-radius: 20px !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--border-glass) !important;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.2) !important;
+}
+
+.suggestion-item {
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    overflow: visible !important;
+}
+
+.suggestion-item:hover {
+    transform: translateY(-4px);
+    background: var(--secondary) !important;
+    border-color: var(--primary) !important;
+    z-index: 5;
+}
+
+.column-tag {
+    display: inline-block;
+    background: rgba(var(--primary-rgb), 0.1);
+    color: var(--primary);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    margin-right: 4px;
+    margin-top: 4px;
+}
+
+.columns-preview {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    width: 100%;
+    background: var(--secondary);
+    border: 1px solid var(--border-glass);
+    padding: 12px;
+    border-radius: 12px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    display: none;
+    z-index: 100;
+    animation: slideInUp 0.2s ease;
+}
+
+.suggestion-item:hover .columns-preview {
+    display: block;
+}
+
+@keyframes slideInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Toast Notifications ---- */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 9999;
+}
+
+.toast {
+    padding: 16px 24px;
+    border-radius: 12px;
+    background: var(--bg-card);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-glass);
+    color: var(--text-main);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 300px;
+    animation: slideInRight 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition: all 0.3s ease;
+}
+
+.toast.hiding {
+    transform: translateX(120%);
+    opacity: 0;
+}
+
+.toast-success { border-left: 4px solid var(--success); }
+.toast-error { border-left: 4px solid var(--danger); }
+.toast-info { border-left: 4px solid var(--primary); }
+.toast-warning { border-left: 4px solid var(--warning); }
+
+.toast-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toast-content {
+    flex: 1;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
 }
 
 /* ---- Mobile Responsiveness ---- */

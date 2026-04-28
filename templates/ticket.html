@@ -1,99 +1,27 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ticket de {{ audit.details.type }} #{{ audit.id }}</title>
-    <style>
-        body {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
-            color: #000;
-            background: #fff;
-            background: #fff;
-            margin: 0 auto;
-            padding: 5mm;
-            width: 58mm; /* Ancho típico de impresora térmica pequeña (aprox 5.5cm a 5.8cm) */
-        }
-        .ticket-header {
-            text-align: center;
-            margin-bottom: 10px;
-            border-bottom: 1px dashed #000;
-            padding-bottom: 10px;
-        }
-        .ticket-header h1 {
-            font-size: 18px;
-            margin: 0 0 5px 0;
-        }
-        .ticket-info {
-            margin-bottom: 10px;
-            border-bottom: 1px dashed #000;
-            padding-bottom: 10px;
-        }
-        .ticket-info p {
-            margin: 2px 0;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 10px;
-        }
-        th, td {
-            text-align: left;
-            padding: 2px 0;
-        }
-        th {
-            border-bottom: 1px solid #000;
-        }
-        .text-right {
-            text-align: right;
-        }
-        .ticket-footer {
-            border-top: 1px dashed #000;
-            padding-top: 10px;
-            margin-bottom: 20px;
-        }
-        .totals {
-            margin: 2px 0;
-            display: flex;
-            justify-content: space-between;
-        }
-        .totals.grand-total {
-            font-weight: bold;
-            font-size: 14px;
-        }
-        .thank-you {
-            text-align: center;
-            margin-top: 15px;
-            font-size: 10px;
-        }
-        
-        @media print {
-            body {
-                width: 58mm;
-                margin: 0 auto;
-                padding: 0;
-            }
-            @page {
-                margin: 0;
-                size: 58mm auto; /* Obliga al navegador a usar papel continuo vertical de 58mm */
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/static/css/ticket.css">
 </head>
+
 <body onload="window.print()">
     <div class="ticket-header">
         <h1>MicroBase POS</h1>
         <p>Ticket de {{ audit.details.type }}</p>
     </div>
-    
+
     <div class="ticket-info">
         <p><strong>Ticket #:</strong> {{ audit.id }}</p>
         <p><strong>Fecha:</strong> {{ audit.timestamp.strftime('%Y-%m-%d %H:%M') if audit.timestamp else 'N/A' }}</p>
         <p><strong>Operador:</strong> {{ audit.employee_code }}</p>
-        <p><strong>{% if audit.details.type == 'Compra' %}Proveedor{% else %}Cliente{% endif %}:</strong> {{ audit.details.client_name or 'Consumidor Final' }}</p>
+        <p><strong>{% if audit.details.type == 'Compra' %}Proveedor{% else %}Cliente{% endif %}:</strong> {{
+            audit.details.client_name or 'Consumidor Final' }}</p>
     </div>
-    
+
     <table>
         <thead>
             <tr>
@@ -112,7 +40,7 @@
             {% endfor %}
         </tbody>
     </table>
-    
+
     <div class="ticket-footer">
         <div class="totals">
             <span>Subtotal:</span>
@@ -126,9 +54,10 @@
             <span>TOTAL:</span>
             <span>${{ "%.2f"|format(audit.details.total) }}</span>
         </div>
-        
+
         <p class="thank-you">¡Gracias por su {{ 'proveeduría' if audit.details.type == 'Compra' else 'compra' }}!</p>
         <p class="thank-you" style="margin-top:2px;">Generado por MicroBase ERP</p>
     </div>
 </body>
+
 </html>

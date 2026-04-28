@@ -6,26 +6,26 @@
 </header>
 
 <div class="settings-container glass-panel" style="max-width: 600px; padding: 24px;">
-    <div style="background: rgba(0,0,0,0.2); padding: 12px 16px; border-radius: var(--radius-md); margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
-        <i data-lucide="user" style="color: var(--primary);"></i>
-        <h3 style="font-weight: 500;">Perfil de Usuario</h3>
+    <div class="d-flex align-center gap-3 mb-6" style="background: rgba(0,0,0,0.2); padding: 12px 16px; border-radius: var(--radius-md);">
+        <i data-lucide="user" class="text-primary"></i>
+        <h3 class="fw-500">Perfil de Usuario</h3>
     </div>
     
-    <div class="form-group" style="display: flex; align-items: center; gap: 16px;">
-        <i data-lucide="user" style="color: var(--text-muted); width: 20px;"></i>
+    <div class="form-group d-flex align-center gap-4">
+        <i data-lucide="user" class="text-muted" style="width: 20px;"></i>
         <input type="text" class="input-neumorphic" value="{{ user.full_name if user else '' }}" disabled>
     </div>
-    <div class="form-group" style="display: flex; align-items: center; gap: 16px;">
-        <i data-lucide="mail" style="color: var(--text-muted); width: 20px;"></i>
+    <div class="form-group d-flex align-center gap-4">
+        <i data-lucide="mail" class="text-muted" style="width: 20px;"></i>
         <input type="email" class="input-neumorphic" value="{{ user.email if user else '' }}" disabled>
     </div>
-    <div class="form-group" style="display: flex; align-items: center; gap: 16px;">
-        <i data-lucide="lock" style="color: var(--text-muted); width: 20px;"></i>
+    <div class="form-group d-flex align-center gap-4">
+        <i data-lucide="lock" class="text-muted" style="width: 20px;"></i>
         <input type="password" class="input-neumorphic" value="********" disabled>
     </div>
-    <div class="form-group" style="display: flex; align-items: center; gap: 16px; margin-top: 24px; justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <i data-lucide="bell" style="color: var(--text-muted); width: 20px;"></i>
+    <div class="form-group d-flex align-center justify-between gap-4 mt-6">
+        <div class="d-flex align-center gap-3">
+            <i data-lucide="bell" class="text-muted" style="width: 20px;"></i>
             <span>Notificaciones activas</span>
         </div>
         <label class="switch">
@@ -33,9 +33,9 @@
             <span class="slider round"></span>
         </label>
     </div>
-    <div style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px;">
+    <div class="d-flex justify-end gap-3 mt-8">
         {% if user.role in ['admin', 'manager'] %}
-        <button class="btn btn-secondary" onclick="window.location.href='/register'" style="display: flex; align-items: center; gap: 6px;">
+        <button class="btn btn-secondary d-flex align-center gap-2" onclick="window.location.href='/register'">
             <i data-lucide="user-plus" style="width: 16px;"></i> Añadir Usuario
         </button>
         {% endif %}
@@ -43,15 +43,15 @@
     </div>
 </div>
 
-<div class="settings-container glass-panel" style="max-width: 600px; padding: 24px; margin-top: 24px;">
-    <div style="background: rgba(0,0,0,0.2); padding: 12px 16px; border-radius: var(--radius-md); margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
-        <i data-lucide="palette" style="color: var(--warning);"></i>
-        <h3 style="font-weight: 500;">Personalización</h3>
+<div class="settings-container glass-panel mt-6" style="max-width: 600px; padding: 24px;">
+    <div class="d-flex align-center gap-3 mb-6" style="background: rgba(0,0,0,0.2); padding: 12px 16px; border-radius: var(--radius-md);">
+        <i data-lucide="palette" class="text-warning"></i>
+        <h3 class="fw-500">Personalización</h3>
     </div>
     
-    <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <i data-lucide="sun" style="color: var(--text-muted); width: 20px;"></i>
+    <div class="form-group d-flex align-center justify-between gap-4">
+        <div class="d-flex align-center gap-3">
+            <i data-lucide="sun" class="text-muted" style="width: 20px;"></i>
             <span>Tema Oscuro</span>
         </div>
         <label class="switch">
@@ -60,14 +60,14 @@
         </label>
     </div>
 
-    <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <i data-lucide="type" style="color: var(--text-muted); width: 20px;"></i>
+    <div class="form-group d-flex align-center justify-between gap-4 mt-6">
+        <div class="d-flex align-center gap-3">
+            <i data-lucide="type" class="text-muted" style="width: 20px;"></i>
             <span>Tamaño de la Interfaz (Zoom)</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div class="d-flex align-center gap-2">
             <button class="btn btn-secondary" onclick="changeZoom(-1)" title="Reducir tamaño" style="padding: 4px 12px;">-</button>
-            <span id="zoom-level-display" style="min-width: 45px; text-align: center; font-weight: 500; font-size: 0.9rem;">100%</span>
+            <span id="zoom-level-display" class="fw-500" style="min-width: 45px; text-align: center; font-size: 0.9rem;">100%</span>
             <button class="btn btn-secondary" onclick="changeZoom(1)" title="Aumentar tamaño" style="padding: 4px 12px;">+</button>
         </div>
     </div>
