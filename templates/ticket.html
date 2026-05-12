@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/static/css/ticket.css">
 </head>
 
-<body onload="window.print()">
+<body>
     <div class="ticket-header">
         <h1>MicroBase POS</h1>
         <p>Ticket de {{ audit.details.type }}</p>
@@ -57,7 +57,24 @@
 
         <p class="thank-you">¡Gracias por su {{ 'proveeduría' if audit.details.type == 'Compra' else 'compra' }}!</p>
         <p class="thank-you" style="margin-top:2px;">Generado por MicroBase ERP</p>
+    <div class="no-print print-controls">
+        <button class="print-btn" onclick="window.print()">
+            Imprimir
+        </button>
+        <button class="print-btn close-btn" onclick="window.close()">
+            Cerrar
+        </button>
     </div>
+
+    <script>
+        // Esperamos 2 segundos para que el usuario vea el ticket antes de abrir el diálogo
+        window.onload = () => {
+            setTimeout(() => {
+                window.print();
+            }, 2000);
+        };
+    </script>
 </body>
+
 
 </html>

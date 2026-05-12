@@ -68,6 +68,56 @@ th {
     }
     @page {
         margin: 0;
-        size: 58mm auto; /* Obliga al navegador a usar papel continuo vertical de 58mm */
+        size: 58mm auto;
+    }
+    .no-print {
+        display: none !important;
     }
 }
+
+/* UI Elements - Only for screen */
+.print-controls {
+    display: flex;
+    justify-content: center;
+    gap: 25px; /* Más espacio entre botones */
+    margin-top: 60px; /* Más espacio respecto a la factura */
+    padding-bottom: 40px;
+    width: 100%;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 300px; /* Para que no se encojan en el ancho del ticket */
+}
+
+.print-btn {
+    background: #0cba55;
+    color: white;
+    border: none;
+    padding: 12px 24px; /* Un poco más grandes */
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: sans-serif;
+    transition: all 0.2s;
+    font-size: 14px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+
+
+.print-btn:hover {
+    transform: scale(1.05);
+    background: #005c26;
+}
+
+.close-btn {
+    background: #64748b;
+}
+
+.close-btn:hover {
+    background: #475569;
+}
+
