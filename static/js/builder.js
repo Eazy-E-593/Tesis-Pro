@@ -118,13 +118,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Sugerencias pre-llenadas por tipo de campo
         const SUGGESTED_OPTIONS = {
-            'text': 'Ej: Nombre, Email, Dirección',
-            'number': 'Ej: 0, 10, 100',
-            'date': 'Ej: Fecha de Ingreso, Fecha de Despido',
+            'text': 'Nombre, Email, Dirección',
+            'number': '0, 10, 100',
+            'date': 'Fecha de Ingreso, Fecha de Despido',
             'select': ''
         };
         const defaultOptions = SUGGESTED_OPTIONS[type] || '';
         const isSelect = type === 'select';
+
+        const hintHtml = isSelect
+            ? `<div class="field-options-group">
+                 <label>Opciones de selección:</label>
+                 <input type="text" class="field-options-input input-neumorphic" 
+                        placeholder="Ej: Aprobado, Rechazado (separadas por coma)" 
+                        value="${defaultOptions}">
+               </div>`
+            : `<div class="field-hint">
+                 <i data-lucide="lightbulb" style="width: 14px;"></i>
+                 <span><strong>Sugerencia:</strong> ${defaultOptions}</span>
+               </div>`;
 
         fieldCard.innerHTML = `
             <div class="field-drag-handle">
@@ -134,12 +146,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="field-type-badge">
                     <i data-lucide="${iconName}" style="width: 14px;"></i> ${label}
                 </div>
-                <input type="text" class="field-name-input input-neumorphic"
-                       placeholder="Nombre de la columna..." value="">
-                <input type="text" class="field-options-input input-neumorphic"
-                       placeholder="${isSelect ? 'Ej: Aprobado, Rechazado (separadas por coma)' : 'Opciones predeterminadas...'}"
-                       value="${defaultOptions}"
-                       style="margin-top: 8px; font-size: 0.85rem; ${!isSelect ? 'opacity: 0.7; pointer-events: none;' : ''}" ${!isSelect ? 'readonly' : ''}>
+                <div class="field-options-group">
+                    <label>Nombre de la columna:</label>
+                    <input type="text" class="field-name-input input-neumorphic"
+                           placeholder="Ej: Nombre Completo, Edad..." value="">
+                </div>
+                ${hintHtml}
             </div>
             <button class="btn-link delete-field" style="color: var(--danger);"
                     onclick="this.parentElement.remove(); checkEmptyState();">
@@ -147,24 +159,24 @@ document.addEventListener('DOMContentLoaded', () => {
             </button>
         `;
 
+
         dropZone.appendChild(fieldCard);
         lucide.createIcons();
 
         // Focus en el nuevo input automáticamente
         const nameInput = fieldCard.querySelector('.field-name-input');
         const optionsInput = fieldCard.querySelector('.field-options-input');
-        
+
         setTimeout(() => nameInput.focus(), 50);
 
         // Inteligencia básica: Si el usuario escribe "Rol" o "Role", sugerir opciones de manager/empleado
         nameInput.addEventListener('input', (e) => {
             const val = e.target.value.toLowerCase().trim();
-            if ((val === 'rol' || val === 'role' || val === 'cargo') && !optionsInput.value) {
-                optionsInput.value = "manager, empleado";
-                // Si es un campo de texto, avisar sutilmente o cambiar a select?
-                // Mejor simplemente llenar las opciones por si decide cambiarlo a Selección
+            if (optionsInput && (val === 'rol' || val === 'role' || val === 'cargo') && !optionsInput.value) {
+                optionsInput.value = "Admin, Manager, Empleado";
             }
         });
+
     }
 });
 
@@ -243,7 +255,7 @@ async function saveTable() {
 
         if (response.ok) {
             const result = await response.json();
-            window.appIsDirty = false; 
+            window.appIsDirty = false;
             showToast("¡Tabla creada con éxito!", "success");
             setTimeout(() => {
                 window.location.href = '/tables-view';

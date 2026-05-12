@@ -884,10 +884,45 @@ input:checked+.slider:before {
     display: grid;
     grid-template-columns: 40px 1fr 40px;
     align-items: center;
-    padding: 16px;
+    padding: 20px;
     gap: 16px;
     animation: slideIn 0.3s ease-out;
 }
+
+.field-options-group {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.field-options-group label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.field-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: rgba(12, 186, 85, 0.05);
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px dashed rgba(12, 186, 85, 0.2);
+    margin-top: 8px;
+}
+
+.field-hint i {
+    color: var(--primary);
+    opacity: 0.8;
+}
+
 
 @keyframes slideIn {
     from {
