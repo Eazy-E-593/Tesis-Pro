@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="field-options-group">
                     <label>Nombre de la columna:</label>
                     <input type="text" class="field-name-input input-neumorphic"
-                           placeholder="Ej: Nombre Completo, Edad..." value="">
+                           placeholder="Ej: Estado, Edad..." value="">
                 </div>
                 ${hintHtml}
             </div>

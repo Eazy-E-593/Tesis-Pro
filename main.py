@@ -236,8 +236,19 @@ def api_create_table_full(payload: schemas.AppTableCreateFull, request: Request,
     db.commit()
     db.refresh(new_table)
     
+    # Separar campos auto-generados para ponerlos al inicio
+    auto_fields = []
+    normal_fields = []
+    for field in payload.fields:
+        if field.name.upper() in ["COD", "ID"]:
+            auto_fields.append(field)
+        else:
+            normal_fields.append(field)
+            
+    reordered_fields = auto_fields + normal_fields
+
     # Crear los campos con su order_index preservado
-    for idx, field in enumerate(payload.fields):
+    for idx, field in enumerate(reordered_fields):
         db_field = models.AppField(
             name=field.name,
             field_type=field.field_type,
@@ -279,7 +290,35 @@ def api_delete_table(table_id: int, request: Request, db: Session = Depends(data
 
 @app.post("/tables/{table_id}/fields", response_model=schemas.AppField, tags=["tables"])
 def api_add_field(table_id: int, field: schemas.AppFieldCreate, db: Session = Depends(database.get_db)):
-    db_field = models.AppField(**field.dict(), table_id=table_id)
+    current_fields = db.query(models.AppField).filter(models.AppField.table_id == table_id).order_by(models.AppField.order_index).all()
+    
+    target_index = field.order_index
+    if target_index is None:
+        target_index = len(current_fields)
+        
+    max_auto_idx = -1
+    for f in current_fields:
+        if f.name.upper() in ["COD", "ID"]:
+            if f.order_index is not None and f.order_index > max_auto_idx:
+                max_auto_idx = f.order_index
+                
+    if field.name.upper() not in ["COD", "ID"]:
+        if target_index <= max_auto_idx:
+            target_index = max_auto_idx + 1
+    else:
+        target_index = 0
+
+    for f in current_fields:
+        if f.order_index is not None and f.order_index >= target_index:
+            f.order_index += 1
+
+    db_field = models.AppField(
+        name=field.name,
+        field_type=field.field_type,
+        options=field.options,
+        order_index=target_index,
+        table_id=table_id
+    )
     db.add(db_field)
     db.commit()
     db.refresh(db_field)

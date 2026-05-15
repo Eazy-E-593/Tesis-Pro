@@ -7,7 +7,8 @@ window.appLeaveMsg = '¿Seguro que quieres salir? Los cambios no se guardarán.'
 
 async function loadTable(tableId) {
     if (window.appIsDirty) {
-        if (!confirm(window.appLeaveMsg)) {
+        let ok = await showConfirmModal(window.appLeaveMsg);
+        if (!ok) {
             return; // Abort loadTable
         }
         window.appIsDirty = false;
@@ -116,6 +117,7 @@ function renderTable(fields, records) {
         // Exclude auto-generated fields (COD, ID) from the "new row" detection
         const AUTO_FIELDS = ['COD', 'ID'];
         let isNewRow = !fields.some(f => !AUTO_FIELDS.includes(f.name.toUpperCase()) && dataObj[f.name] !== "" && dataObj[f.name] !== undefined);
+        tr.dataset.isNewRow = isNewRow;
 
         fields.forEach(field => {
             let td = document.createElement('td');
@@ -275,6 +277,10 @@ function renderTable(fields, records) {
 }
 
 function updateRowProgressive(tr) {
+    // Solo aplicar lógica progresiva a filas que están vacías (nuevas)
+    // Si la fila ya tiene datos, no queremos ocultar nada aunque se añada una columna vacía
+    if (tr.dataset.isNewRow !== 'true') return;
+
     let allInputs = tr.querySelectorAll('.cell-input');
     let previousFilled = true;
 
@@ -361,7 +367,8 @@ async function addRow() {
 }
 
 async function deleteRow(recordId) {
-    if (!confirm("¿Seguro que deseas eliminar esta fila?")) return;
+    let ok = await showConfirmModal("¿Seguro que deseas eliminar esta fila?");
+    if (!ok) return;
     try {
         await fetch(`/records/${recordId}`, { method: 'DELETE' });
         loadTableSilently();
@@ -442,7 +449,49 @@ async function saveRow(recordId) {
 // ---- Column Actions (No Code builder) ----
 
 function showAddColumnModal() {
+    const posSelect = document.getElementById('new-col-position');
+    if (posSelect) {
+        posSelect.innerHTML = '<option value="end">Al final</option><option value="start">Al principio</option>';
+        currentFields.forEach(f => {
+            let option = document.createElement('option');
+            option.value = `after_${f.id}`;
+            option.textContent = `Después de "${f.name}"`;
+            posSelect.appendChild(option);
+        });
+    }
     document.getElementById('add-column-modal').classList.add('active');
+}
+
+let customConfirmResolver = null;
+
+function showConfirmModal(message) {
+    return new Promise(resolve => {
+        const modal = document.getElementById('custom-confirm-modal');
+        const msgEl = document.getElementById('custom-confirm-message');
+        const btnAccept = document.getElementById('custom-confirm-accept-btn');
+        
+        if (modal && msgEl) {
+            msgEl.textContent = message;
+            modal.classList.add('active');
+            // Remove previous focus and set focus to accept button
+            setTimeout(() => { if(btnAccept) btnAccept.focus(); }, 100);
+            
+            customConfirmResolver = resolve;
+        } else {
+            // Fallback just in case
+            resolve(confirm(message));
+        }
+    });
+}
+
+function resolveCustomConfirm(result) {
+    const modal = document.getElementById('custom-confirm-modal');
+    if (modal) modal.classList.remove('active');
+    
+    if (customConfirmResolver) {
+        customConfirmResolver(result);
+        customConfirmResolver = null;
+    }
 }
 
 function showToast(message, type = 'info') {
@@ -451,7 +500,7 @@ function showToast(message, type = 'info') {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    
+
     let icon = 'info';
     if (type === 'success') icon = 'check-circle';
     if (type === 'error') icon = 'alert-circle';
@@ -478,8 +527,10 @@ function closeModal(id) {
     document.getElementById(id).classList.remove('active');
     const nameEl = document.getElementById('new-col-name');
     const optEl = document.getElementById('new-col-options');
+    const posEl = document.getElementById('new-col-position');
     if (nameEl) nameEl.value = '';
     if (optEl) optEl.value = '';
+    if (posEl) posEl.value = 'end';
 }
 
 async function submitNewColumn() {
@@ -489,16 +540,39 @@ async function submitNewColumn() {
     let colType = document.getElementById('new-col-type').value;
     let colOptions = document.getElementById('new-col-options')?.value.trim() || null;
 
+    let posVal = document.getElementById('new-col-position')?.value || 'end';
+
     if (!colName) {
         showToast("El nombre de la columna no puede estar vacío", "warning");
         return;
+    }
+
+    let payload = { name: colName, field_type: colType, options: colOptions || null };
+
+    if (posVal === 'start') {
+        payload.order_index = 0;
+    } else if (posVal.startsWith('after_')) {
+        let afterId = parseInt(posVal.replace('after_', ''));
+        let idx = currentFields.findIndex(f => f.id === afterId);
+        if (idx !== -1) {
+            let targetField = currentFields[idx];
+            let baseIndex = targetField.order_index !== null ? targetField.order_index : idx;
+            payload.order_index = baseIndex + 1;
+        }
+    }
+
+    if (currentTableRecords.length > 0) {
+        let ok = await showConfirmModal(`Nota: Las ${currentTableRecords.length} filas existentes tendrán este nuevo campo ("${colName}") vacío. ¿Deseas continuar?`);
+        if (!ok) {
+            return;
+        }
     }
 
     try {
         await fetch(`/tables/${currentTableId}/fields`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: colName, field_type: colType, options: colOptions || null })
+            body: JSON.stringify(payload)
         });
 
         closeModal('add-column-modal');
@@ -548,15 +622,19 @@ function openManageColumnsModal() {
     let dragSrc = null;
 
     currentFields.forEach((field) => {
+        let isAuto = ['COD', 'ID'].includes(field.name.toUpperCase());
         const card = document.createElement('div');
         card.style.cssText = 'display:flex; gap:10px; align-items:center; background:var(--secondary); padding:12px; border-radius:10px; flex-wrap:wrap; cursor:default; transition: border-top 0.1s;';
         card.dataset.fieldId = field.id;
-        card.draggable = true;
+        card.dataset.isAuto = isAuto;
+        card.draggable = !isAuto;
+
+        let dragHandleHtml = isAuto
+            ? `<div style="color:var(--text-muted); padding:0 4px; display:flex; align-items:center; opacity:0.5;" title="Campo automático fijo"><i data-lucide="lock" style="width:18px;"></i></div>`
+            : `<div style="cursor:grab; color:var(--text-muted); padding:0 4px; display:flex; align-items:center;" title="Arrastra para reordenar"><i data-lucide="grip-vertical" style="width:18px;"></i></div>`;
 
         card.innerHTML = `
-            <div style="cursor:grab; color:var(--text-muted); padding:0 4px; display:flex; align-items:center;" title="Arrastra para reordenar">
-                <i data-lucide="grip-vertical" style="width:18px;"></i>
-            </div>
+            ${dragHandleHtml}
             <div style="flex:1; min-width:120px;">
                 <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">Nombre</label>
                 <input type="text" value="${field.name}" class="input-neumorphic col-edit-name"
@@ -578,33 +656,45 @@ function openManageColumnsModal() {
                        style="width:100%; padding:8px; ${field.field_type !== 'select' ? 'opacity:0.7; pointer-events:none;' : ''}" ${field.field_type !== 'select' ? 'readonly' : ''}>
             </div>
             <div style="display:flex; align-items:center; padding-top:18px;">
-                <button onclick="deleteColumnFromModal(${field.id})" class="btn" style="padding:6px 10px; font-size:0.8rem; background:transparent; color:var(--danger); border:1px solid var(--danger);" title="Eliminar columna">
+                ${!isAuto ? `<button onclick="deleteColumnFromModal(${field.id})" class="btn" style="padding:6px 10px; font-size:0.8rem; background:transparent; color:var(--danger); border:1px solid var(--danger);" title="Eliminar columna">
                     <i data-lucide="trash-2" style="width:13px;"></i>
-                </button>
+                </button>` : ''}
             </div>
         `;
 
         // ── Drag & Drop (solo reordena en el DOM, no llama al backend aún) ──
-        card.addEventListener('dragstart', (e) => {
-            dragSrc = card;
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', String(field.id));
-            setTimeout(() => card.style.opacity = '0.4', 0);
-        });
+        if (!isAuto) {
+            card.addEventListener('dragstart', (e) => {
+                dragSrc = card;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(field.id));
+                setTimeout(() => card.style.opacity = '0.4', 0);
+            });
 
-        card.addEventListener('dragend', () => {
-            card.style.opacity = '1';
-            list.querySelectorAll('[data-field-id]').forEach(c => c.style.borderTop = '');
-        });
+            card.addEventListener('dragend', () => {
+                card.style.opacity = '1';
+                list.querySelectorAll('[data-field-id]').forEach(c => c.style.borderTop = '');
+            });
+        }
 
         card.addEventListener('dragover', (e) => {
+            if (card.dataset.isAuto === 'true') return; // Prevent dropping on auto fields
             e.preventDefault();
             e.stopPropagation();
+
+            // Auto-scroll logic
+            const scrollContainer = list.parentElement; // .modal-body
+            const rect = scrollContainer.getBoundingClientRect();
+            const y = e.clientY - rect.top;
+            if (y < 50) scrollContainer.scrollTop -= 15;
+            else if (y > rect.height - 50) scrollContainer.scrollTop += 15;
+
             list.querySelectorAll('[data-field-id]').forEach(c => c.style.borderTop = '');
-            if (card !== dragSrc) card.style.borderTop = '2px solid var(--primary)';
+            if (card !== dragSrc) card.style.borderTop = '6px solid var(--primary)';
         });
 
         card.addEventListener('drop', (e) => {
+            if (card.dataset.isAuto === 'true') return;
             e.preventDefault();
             e.stopPropagation();
             list.querySelectorAll('[data-field-id]').forEach(c => c.style.borderTop = '');
@@ -635,7 +725,8 @@ function openManageColumnsModal() {
 }
 
 async function deleteColumnFromModal(fieldId) {
-    if (!confirm("¿Seguro que deseas eliminar esta columna? Los datos de las filas no se perderán pero dejarán de mostrarse.")) return;
+    let ok = await showConfirmModal("¿Seguro que deseas eliminar esta columna? Los datos de las filas no se perderán pero dejarán de mostrarse.");
+    if (!ok) return;
     try {
         await fetch(`/fields/${fieldId}`, { method: 'DELETE' });
         document.getElementById('manage-columns-modal').classList.remove('active');
@@ -733,7 +824,8 @@ async function saveAllColumns() {
 
 
 async function deleteColumn(fieldId) {
-    if (!confirm("¿Seguro que deseas eliminar esta columna? Los datos existentes en las filas no se perderán pero dejarán de mostrarse.")) return;
+    let ok = await showConfirmModal("¿Seguro que deseas eliminar esta columna? Los datos existentes en las filas no se perderán pero dejarán de mostrarse.");
+    if (!ok) return;
 
     try {
         await fetch(`/fields/${fieldId}`, { method: 'DELETE' });
@@ -747,9 +839,11 @@ async function deleteCurrentTable() {
     if (!currentTableId) return;
     const tableName = document.getElementById('current-table-name').innerText;
     if (tableName.toLowerCase() === 'inventario') {
-        if (!confirm(`⚠️ ADVERTENCIA CRÍTICA: "Inventario" es la tabla base. ¿Estás absolutamente seguro de eliminarla?`)) return;
+        let ok = await showConfirmModal(`⚠️ ADVERTENCIA CRÍTICA: "Inventario" es la tabla base. ¿Estás absolutamente seguro de eliminarla?`);
+        if (!ok) return;
     } else {
-        if (!confirm(`¿Seguro que deseas eliminar permanentemente la tabla "${tableName}" y TODOS sus datos?`)) return;
+        let ok = await showConfirmModal(`¿Seguro que deseas eliminar permanentemente la tabla "${tableName}" y TODOS sus datos?`);
+        if (!ok) return;
     }
 
     try {
@@ -778,6 +872,58 @@ async function loadTableSilently() {
         console.error("Error refreshing table", e);
     }
 }
+
+// ---- Sidebar Logic ----
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.toggle('collapsed');
+        localStorage.setItem('sidebar_collapsed', sidebar.classList.contains('collapsed'));
+    }
+}
+
+// Expandir sidebar al hacer clic en ella si está contraída
+function initSidebarExpansion() {
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    sidebar.addEventListener('click', (e) => {
+        // Ignorar si el clic fue en un botón, enlace o input para no interferir con su acción ni re-expandir inmediatamente
+        if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) {
+            return;
+        }
+
+        // Solo expandir si está colapsada
+        if (sidebar.classList.contains('collapsed')) {
+            sidebar.classList.remove('collapsed');
+            localStorage.setItem('sidebar_collapsed', 'false');
+            // Opcional: Re-crear iconos de lucide por si acaso
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    });
+}
+
+
+// Auto-collapse on link click & restore state
+document.addEventListener('DOMContentLoaded', () => {
+    if (localStorage.getItem('sidebar_collapsed') === 'true') {
+        document.querySelector('.sidebar')?.classList.add('collapsed');
+    }
+    
+    initSidebarExpansion();
+    
+    const navLinks = document.querySelectorAll('.sidebar .nav-link');
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            const sidebar = document.querySelector('.sidebar');
+            // If they click on a table link, let's collapse it to give space
+            if (sidebar && !sidebar.classList.contains('collapsed')) {
+                sidebar.classList.add('collapsed');
+                localStorage.setItem('sidebar_collapsed', 'true');
+            }
+        });
+    });
+});
 
 // ---- Theme Logic ----
 function toggleTheme() {
@@ -881,7 +1027,7 @@ function searchInventory() {
     const resDiv = document.getElementById('search-results');
     const cartSection = document.getElementById('cart-section');
     resDiv.innerHTML = '';
-    
+
     const results = currentTableRecords.filter(r => {
         if (!q) return true;
         let name = String(r.data.Nombre || '').toLowerCase();
@@ -894,7 +1040,7 @@ function searchInventory() {
         resDiv.style.background = 'var(--bg-card)'; // Fondo sólido
         resDiv.style.borderRadius = '12px';
         resDiv.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
-        
+
         // Ocultar sección del carrito para que no se vea amontonado
         if (cartSection) cartSection.style.display = 'none';
 
@@ -909,10 +1055,10 @@ function searchInventory() {
             div.style.justifyContent = 'space-between';
             div.style.alignItems = 'center';
             div.style.transition = 'background 0.2s';
-            
+
             div.onmouseover = () => div.style.background = 'rgba(255,255,255,0.05)';
             div.onmouseout = () => div.style.background = 'transparent';
-            
+
             div.innerHTML = `
                 <div>
                     <strong style="color:var(--text-main); display:block;">${r.data.Nombre}</strong>
@@ -1081,12 +1227,12 @@ async function processMovement() {
             document.getElementById('mov-client').value = '';
             closeMovementPanel();
             loadTableSilently();
-            
+
             // Abrir Ticket
             if (data.audit_id) {
                 window.open('/ticket/' + data.audit_id, '_blank', 'width=400,height=600');
             }
-            
+
             showToast(`¡${type} procesada con éxito! El movimiento quedó registrado en Auditoría.`, "success");
         }
     } catch (e) {

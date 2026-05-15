@@ -18,11 +18,11 @@
         <!-- Sidebar - Componentes -->
         <aside class="builder-toolbox glass-panel">
             <h3>Componentes</h3>
-            <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 20px;">Arrastra los tipos de datos al lienzo</p>
-            
+            <p class="text-muted" style="margin-bottom: 20px;">Arrastra los tipos de datos al lienzo</p>
+
             <div class="draggable-item" draggable="true" data-type="text" data-icon="type">
                 <i data-lucide="type"></i>
-                <span>Texto Corto</span>
+                <span>Texto</span>
             </div>
             <div class="draggable-item" draggable="true" data-type="number" data-icon="binary">
                 <i data-lucide="binary"></i>
@@ -43,18 +43,20 @@
             <div class="canvas-header glass-panel" style="margin-bottom: 24px;">
                 <div class="form-group">
                     <label>Nombre de la Tabla <span style="color: var(--danger);">*</span></label>
-                    <input type="text" id="table-name" class="input-neumorphic" placeholder="Ej: Proveedores, Gastos..." style="width: 100%; font-size: 1.2rem; font-weight: 600;">
+                    <input type="text" id="table-name" class="input-neumorphic" placeholder="Ej: Proveedores, Gastos..."
+                        style="width: 100%; font-size: 1.2rem; font-weight: 600;">
                 </div>
                 <div class="form-group" style="margin-top: 16px;">
                     <label>Descripción</label>
-                    <textarea id="table-description" class="input-neumorphic" placeholder="¿Para qué sirve esta tabla?" style="width: 100%; height: 60px;"></textarea>
+                    <textarea id="table-description" class="input-neumorphic" placeholder="¿Para qué sirve esta tabla?"
+                        style="width: 100%; height: 60px;"></textarea>
                 </div>
             </div>
 
             <div id="drop-zone" class="drop-zone glass-panel">
                 <div class="empty-state">
                     <i data-lucide="mouse-pointer-2" style="width: 48px; height: 48px; opacity: 0.3;"></i>
-                    <p>Arrastra aquí tus columnas</p>
+                    <p class="text-muted">Arrastra aquí tus columnas</p>
                 </div>
             </div>
         </div>
