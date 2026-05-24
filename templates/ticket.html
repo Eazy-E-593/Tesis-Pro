@@ -64,18 +64,19 @@
         <button class="print-btn" onclick="window.print()">
             Imprimir
         </button>
-        <button class="print-btn close-btn" onclick="window.close()">
+        <button class="print-btn close-btn" onclick="closeTicket()">
             Cerrar
         </button>
     </div>
 
     <script>
-        // Esperamos 2 segundos para que el usuario vea el ticket antes de abrir el diálogo
-        window.onload = () => {
-            setTimeout(() => {
-                window.print();
-            }, 2000);
-        };
+        function closeTicket() {
+            if (window.parent && window.parent.document.getElementById('ticket-modal')) {
+                window.parent.document.getElementById('ticket-modal').classList.remove('active');
+            } else {
+                window.close();
+            }
+        }
     </script>
 </body>
 

@@ -115,7 +115,7 @@
                         </td>
                         <td style="text-align: center;">
                             {% if a.details %}
-                            <button onclick="window.open('/ticket/{{ a.id }}', '_blank', 'width=400,height=600')" title="Imprimir Ticket" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;">
+                            <button onclick="openTicketModal('{{ a.id }}')" title="Imprimir Ticket" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;">
                                 <i data-lucide="printer" style="width: 18px; height: 18px; color: var(--primary);"></i>
                             </button>
                             {% endif %}
