@@ -3,7 +3,7 @@ let currentFields = [];
 let currentTableRecords = [];
 
 window.appIsDirty = false;
-window.appLeaveMsg = 'Â¿Seguro que quieres salir? Los cambios no se guardarÃ¡n.';
+window.appLeaveMsg = '¿Seguro que quieres salir? Los cambios no se guardarán.';
 
 async function loadTable(tableId) {
     if (window.appIsDirty) {
@@ -20,7 +20,7 @@ async function loadTable(tableId) {
         return;
     }
 
-    // Cerrar panel de movimientos si estÃ¡ abierto
+    // Cerrar panel de movimientos si está abierto
     const panel = document.getElementById('movement-panel');
     if (panel && panel.classList.contains('open')) {
         closeMovementPanel();
@@ -46,7 +46,7 @@ async function loadTable(tableId) {
 
         document.getElementById('current-table-name').innerText = data.name;
 
-        // Mostrar / Ocultar botÃ³n de Movimientos
+        // Mostrar / Ocultar botón de Movimientos
         let btnMovimientos = document.getElementById('btn-movimientos');
         if (btnMovimientos) {
             if (data.name.toLowerCase().includes('inventario')) {
@@ -61,7 +61,7 @@ async function loadTable(tableId) {
             let role = typeof currentUserRole !== 'undefined' ? currentUserRole : 'empleado';
             if (['admin', 'manager'].includes(role)) {
                 let singularName = data.name.endsWith('s') ? data.name.slice(0, -1) : data.name;
-                btnCreate.innerHTML = `<i data-lucide="plus"></i> AÃ±adir ${singularName}`;
+                btnCreate.innerHTML = `<i data-lucide="plus"></i> Añadir ${singularName}`;
                 btnCreate.style.display = 'inline-flex';
             } else {
                 btnCreate.style.display = 'none';
@@ -140,7 +140,7 @@ function renderTable(fields, records) {
             if (field.field_type === 'select') {
                 input = document.createElement('select');
                 input.className = 'cell-input input-neumorphic';
-                // AÃ±adir una opciÃ³n vacÃ­a por defecto
+                // Añadir una opción vacía por defecto
                 let defaultOpt = document.createElement('option');
                 defaultOpt.value = "";
                 defaultOpt.textContent = "Seleccione...";
@@ -177,7 +177,7 @@ function renderTable(fields, records) {
                 input.className = 'cell-input';
                 if (isSku || isAutoId) {
                     input.readOnly = true;
-                    input.title = "Generado automÃ¡ticamente";
+                    input.title = "Generado automáticamente";
                     input.classList.add('locked-input');
                     input.style.cursor = 'default';
                     input.style.color = 'var(--text-muted)';
@@ -214,7 +214,7 @@ function renderTable(fields, records) {
                 input.classList.add('empty-cell');
                 let placeholder = document.createElement('span');
                 placeholder.className = 'empty-placeholder';
-                placeholder.innerHTML = 'â ï¸ VacÃ­o, clic para editar';
+                placeholder.innerHTML = '⚠️ Vacío';
                 inputContainer.appendChild(placeholder);
 
                 input.addEventListener('focus', () => {
@@ -284,15 +284,15 @@ function renderTable(fields, records) {
 }
 
 function updateRowProgressive(tr) {
-    // Solo aplicar lÃ³gica progresiva a filas que estÃ¡n vacÃ­as (nuevas)
-    // Si la fila ya tiene datos, no queremos ocultar nada aunque se aÃ±ada una columna vacÃ­a
+    // Solo aplicar lógica progresiva a filas que están vacías (nuevas)
+    // Si la fila ya tiene datos, no queremos ocultar nada aunque se añada una columna vacía
     if (tr.dataset.isNewRow !== 'true') return;
 
     let allInputs = tr.querySelectorAll('.cell-input');
     let previousFilled = true;
 
     allInputs.forEach(input => {
-        if (input.title === "Generado automÃ¡ticamente") return; // Ignorar campos auto-generados (COD, ID)
+        if (input.title === "Generado automáticamente") return; // Ignorar campos auto-generados (COD, ID)
 
         let container = input.parentElement;
         let placeholder = container.querySelector('.empty-placeholder');
@@ -308,7 +308,7 @@ function updateRowProgressive(tr) {
             container.style.opacity = '1';
 
             if (input.value.trim() === '') {
-                previousFilled = false; // La cadena se rompe aquÃ­
+                previousFilled = false; // La cadena se rompe aquí
                 if (placeholder && document.activeElement !== input) {
                     placeholder.style.display = 'flex';
                 }
@@ -323,10 +323,10 @@ window.enableEditRow = function (recordId, btn) {
     let tr = document.querySelector(`tr[data-record-id="${recordId}"]`);
     if (!tr) return;
 
-    let inputs = tr.querySelectorAll('.cell-input:not([title="Generado automÃ¡ticamente"])');
+    let inputs = tr.querySelectorAll('.cell-input:not([title="Generado automáticamente"])');
     inputs.forEach(inp => {
         inp.readOnly = false;
-        inp.disabled = false; // Desbloquea tambiÃ©n los elementos select
+        inp.disabled = false; // Desbloquea también los elementos select
         inp.classList.remove('locked-input');
     });
 
@@ -349,7 +349,7 @@ async function addRow() {
     const pendingSaveBtn = document.querySelector('#table-body .save-btn');
     if (pendingSaveBtn) {
         showToast("Completa y guarda la fila actual antes de crear una nueva.", "warning");
-        const firstInput = pendingSaveBtn.closest('tr')?.querySelector('.cell-input:not([title="Generado automÃ¡ticamente"])');
+        const firstInput = pendingSaveBtn.closest('tr')?.querySelector('.cell-input:not([title="Generado automáticamente"])');
         if (firstInput) firstInput.focus();
         return;
     }
@@ -374,7 +374,7 @@ async function addRow() {
 }
 
 async function deleteRow(recordId) {
-    let ok = await showConfirmModal("Â¿Seguro que deseas eliminar esta fila?");
+    let ok = await showConfirmModal("¿Seguro que deseas eliminar esta fila?");
     if (!ok) return;
     try {
         await fetch(`/records/${recordId}`, { method: 'DELETE' });
@@ -384,7 +384,7 @@ async function deleteRow(recordId) {
     }
 }
 
-// FunciÃ³n para guardar toda la fila bajo demanda manual
+// Función para guardar toda la fila bajo demanda manual
 async function saveRow(recordId) {
     let tr = document.querySelector(`tr[data-record-id="${recordId}"]`);
     if (!tr) return;
@@ -399,7 +399,7 @@ async function saveRow(recordId) {
         let type = inputs[idx].type;
         let val = inputs[idx].value;
 
-        // ValidaciÃ³n Anti-VacÃ­os (excluir campos auto-generados)
+        // Validación Anti-Vacíos (excluir campos auto-generados)
         const AUTO_FIELDS_SAVE = ['COD', 'ID'];
         if (String(val).trim() === '' && !AUTO_FIELDS_SAVE.includes(f.name.toUpperCase())) {
             showToast(`El campo "${f.name}" es obligatorio.`, "warning");
@@ -462,7 +462,7 @@ function showAddColumnModal() {
         currentFields.forEach(f => {
             let option = document.createElement('option');
             option.value = `after_${f.id}`;
-            option.textContent = `DespuÃ©s de "${f.name}"`;
+            option.textContent = `Después de "${f.name}"`;
             posSelect.appendChild(option);
         });
     }
@@ -476,13 +476,13 @@ function showConfirmModal(message) {
         const modal = document.getElementById('custom-confirm-modal');
         const msgEl = document.getElementById('custom-confirm-message');
         const btnAccept = document.getElementById('custom-confirm-accept-btn');
-        
+
         if (modal && msgEl) {
             msgEl.textContent = message;
             modal.classList.add('active');
             // Remove previous focus and set focus to accept button
-            setTimeout(() => { if(btnAccept) btnAccept.focus(); }, 100);
-            
+            setTimeout(() => { if (btnAccept) btnAccept.focus(); }, 100);
+
             customConfirmResolver = resolve;
         } else {
             // Fallback just in case
@@ -494,7 +494,7 @@ function showConfirmModal(message) {
 function resolveCustomConfirm(result) {
     const modal = document.getElementById('custom-confirm-modal');
     if (modal) modal.classList.remove('active');
-    
+
     if (customConfirmResolver) {
         customConfirmResolver(result);
         customConfirmResolver = null;
@@ -550,7 +550,7 @@ async function submitNewColumn() {
     let posVal = document.getElementById('new-col-position')?.value || 'end';
 
     if (!colName) {
-        showToast("El nombre de la columna no puede estar vacÃ­o", "warning");
+        showToast("El nombre de la columna no puede estar vacío", "warning");
         return;
     }
 
@@ -569,7 +569,7 @@ async function submitNewColumn() {
     }
 
     if (currentTableRecords.length > 0) {
-        let ok = await showConfirmModal(`Nota: Las ${currentTableRecords.length} filas existentes tendrÃ¡n este nuevo campo ("${colName}") vacÃ­o. Â¿Deseas continuar?`);
+        let ok = await showConfirmModal(`Nota: Las ${currentTableRecords.length} filas existentes tendrán este nuevo campo ("${colName}") vacío. ¿Deseas continuar?`);
         if (!ok) {
             return;
         }
@@ -589,7 +589,7 @@ async function submitNewColumn() {
     }
 }
 
-// Oculta/Muestra las opciones sugeridas segÃºn el tipo elegido
+// Oculta/Muestra las opciones sugeridas según el tipo elegido
 window.toggleSuggestedOptions = function (selectEl) {
     const parentContainer = selectEl.closest('div[style]').parentElement;
     const optionsContainer = parentContainer.querySelector('.options-container');
@@ -620,7 +620,7 @@ function openManageColumnsModal() {
     const list = document.getElementById('manage-columns-list');
     list.innerHTML = '';
 
-    // Resetear botÃ³n por si quedÃ³ en estado anterior
+    // Resetear botón por si quedó en estado anterior
     const saveBtn = document.getElementById('btn-save-all-cols');
     saveBtn.style.background = '';
     saveBtn.innerHTML = '<i data-lucide="save"></i> Guardar';
@@ -637,7 +637,7 @@ function openManageColumnsModal() {
         card.draggable = !isAuto;
 
         let dragHandleHtml = isAuto
-            ? `<div style="color:var(--text-muted); padding:0 4px; display:flex; align-items:center; opacity:0.5;" title="Campo automÃ¡tico fijo"><i data-lucide="lock" style="width:18px;"></i></div>`
+            ? `<div style="color:var(--text-muted); padding:0 4px; display:flex; align-items:center; opacity:0.5;" title="Campo automático fijo"><i data-lucide="lock" style="width:18px;"></i></div>`
             : `<div style="cursor:grab; color:var(--text-muted); padding:0 4px; display:flex; align-items:center;" title="Arrastra para reordenar"><i data-lucide="grip-vertical" style="width:18px;"></i></div>`;
 
         card.innerHTML = `
@@ -651,10 +651,10 @@ function openManageColumnsModal() {
                 <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">Tipo</label>
                 <select class="input-neumorphic col-edit-type" data-field-id="${field.id}" style="width:100%; padding:8px;" onchange="window.toggleSuggestedOptions(this)">
                     <option value="text"   ${field.field_type === 'text' ? 'selected' : ''}>Texto</option>
-                    <option value="number_int" ${field.field_type === 'number_int' ? 'selected' : ''}>NÃºmero Entero</option>
-                    <option value="number_decimal" ${['number_decimal', 'number'].includes(field.field_type) ? 'selected' : ''}>NÃºmero Decimal</option>
+                    <option value="number_int" ${field.field_type === 'number_int' ? 'selected' : ''}>Número Entero</option>
+                    <option value="number_decimal" ${['number_decimal', 'number'].includes(field.field_type) ? 'selected' : ''}>Número Decimal</option>
                     <option value="date"   ${field.field_type === 'date' ? 'selected' : ''}>Fecha</option>
-                    <option value="select" ${field.field_type === 'select' ? 'selected' : ''}>SelecciÃ³n</option>
+                    <option value="select" ${field.field_type === 'select' ? 'selected' : ''}>Selección</option>
                 </select>
             </div>
             <div class="options-container" style="flex:1; min-width:140px;">
@@ -670,7 +670,7 @@ function openManageColumnsModal() {
             </div>
         `;
 
-        // ââ Drag & Drop (solo reordena en el DOM, no llama al backend aÃºn) ââ
+        // ââ Drag & Drop (solo reordena en el DOM, no llama al backend aún) ââ
         if (!isAuto) {
             card.addEventListener('dragstart', (e) => {
                 dragSrc = card;
@@ -733,7 +733,7 @@ function openManageColumnsModal() {
 }
 
 async function deleteColumnFromModal(fieldId) {
-    let ok = await showConfirmModal("Â¿Seguro que deseas eliminar esta columna? Los datos de las filas no se perderÃ¡n pero dejarÃ¡n de mostrarse.");
+    let ok = await showConfirmModal("¿Seguro que deseas eliminar esta columna? Los datos de las filas no se perderán pero dejarán de mostrarse.");
     if (!ok) return;
     try {
         await fetch(`/fields/${fieldId}`, { method: 'DELETE' });
@@ -768,7 +768,7 @@ async function saveAllColumns() {
     lucide.createIcons();
 
     try {
-        // Guardar cada campo secuencialmente con verificaciÃ³n de respuesta
+        // Guardar cada campo secuencialmente con verificación de respuesta
         for (const card of cards) {
             const fieldId = parseInt(card.dataset.fieldId);
             const name = card.querySelector(`.col-edit-name[data-field-id="${fieldId}"]`).value.trim();
@@ -800,9 +800,9 @@ async function saveAllColumns() {
             }
         }
 
-        // â Ãxito: animaciÃ³n corta â cerrar modal
+        // â Ãxito: animación corta â cerrar modal
         btn.style.background = 'var(--success)';
-        btn.innerHTML = '<i data-lucide="check"></i> Â¡Guardado!';
+        btn.innerHTML = '<i data-lucide="check"></i> ¡Guardado!';
         lucide.createIcons();
 
         setTimeout(() => {
@@ -832,7 +832,7 @@ async function saveAllColumns() {
 
 
 async function deleteColumn(fieldId) {
-    let ok = await showConfirmModal("Â¿Seguro que deseas eliminar esta columna? Los datos existentes en las filas no se perderÃ¡n pero dejarÃ¡n de mostrarse.");
+    let ok = await showConfirmModal("¿Seguro que deseas eliminar esta columna? Los datos existentes en las filas no se perderán pero dejarán de mostrarse.");
     if (!ok) return;
 
     try {
@@ -847,24 +847,24 @@ async function deleteCurrentTable() {
     if (!currentTableId) return;
     const tableName = document.getElementById('current-table-name').innerText;
     if (tableName.toLowerCase() === 'inventario') {
-        let ok = await showConfirmModal(`â ï¸ ADVERTENCIA CRÃTICA: "Inventario" es la tabla base. Â¿EstÃ¡s absolutamente seguro de eliminarla?`);
+        let ok = await showConfirmModal(`â ï¸ ADVERTENCIA CRÃTICA: "Inventario" es la tabla base. ¿Estás absolutamente seguro de eliminarla?`);
         if (!ok) return;
     } else {
-        let ok = await showConfirmModal(`Â¿Seguro que deseas eliminar permanentemente la tabla "${tableName}" y TODOS sus datos?`);
+        let ok = await showConfirmModal(`¿Seguro que deseas eliminar permanentemente la tabla "${tableName}" y TODOS sus datos?`);
         if (!ok) return;
     }
 
     try {
         const res = await fetch(`/tables/${currentTableId}`, { method: 'DELETE' });
         if (res.ok) {
-            showToast("Tabla eliminada con Ã©xito.", "success");
+            showToast("Tabla eliminada con éxito.", "success");
             window.location.href = "/dashboard";
         } else {
             const data = await res.json();
             showToast("Error: " + data.detail, "error");
         }
     } catch (e) {
-        console.error("FallÃ³ la eliminaciÃ³n de la tabla", e);
+        console.error("Falló la eliminación de la tabla", e);
     }
 }
 
@@ -923,7 +923,7 @@ function closeSidebar() {
     document.body.style.overflow = '';
 }
 
-// Expandir sidebar al pasar el mouse si estÃ¡ contraÃ­da
+// Expandir sidebar al pasar el mouse si está contraída
 function initSidebarExpansion() {
     const sidebar = document.querySelector('.sidebar');
     const mobileNavbar = document.querySelector('.mobile-navbar');
@@ -931,9 +931,9 @@ function initSidebarExpansion() {
 
     sidebar.addEventListener('mouseenter', (e) => {
         const isMobile = mobileNavbar && window.getComputedStyle(mobileNavbar).display !== 'none';
-        if (isMobile) return; // Ignorar en mÃ³vil
+        if (isMobile) return; // Ignorar en móvil
 
-        // Solo expandir si estÃ¡ colapsada
+        // Solo expandir si está colapsada
         if (sidebar.classList.contains('collapsed')) {
             sidebar.classList.remove('collapsed');
             sidebar.dataset.hoverExpanded = 'true';
@@ -963,9 +963,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isMobile && localStorage.getItem('sidebar_collapsed') === 'true') {
         document.querySelector('.sidebar')?.classList.add('collapsed');
     }
-    
+
     initSidebarExpansion();
-    
+
     const navLinks = document.querySelectorAll('.sidebar .nav-link');
     navLinks.forEach(link => {
         link.addEventListener('click', () => {
@@ -1041,14 +1041,14 @@ async function loadSuggestions() {
             const dlCedula = document.getElementById('clients-cedula-sug');
             if (dlName) dlName.innerHTML = '';
             if (dlCedula) dlCedula.innerHTML = '';
-            
+
             window.clientsData = [];
-            
+
             data.forEach(item => {
                 let name = typeof item === 'string' ? item : item.name;
                 let cedula = typeof item === 'string' ? '' : item.cedula;
-                window.clientsData.push({name, cedula});
-                
+                window.clientsData.push({ name, cedula });
+
                 if (dlName && name) {
                     let opt = document.createElement('option');
                     opt.value = name;
@@ -1082,7 +1082,7 @@ async function loadSuggestions() {
 function openMovementPanel() {
     const tableName = document.getElementById('current-table-name').innerText.toLowerCase();
     if (!tableName.includes('inventario')) {
-        return showToast("El panel de movimientos estÃ¡ diseÃ±ado para usarlo en el Inventario.", "info");
+        return showToast("El panel de movimientos está diseñado para usarlo en el Inventario.", "info");
     }
     document.getElementById('movement-panel').classList.add('open');
     document.getElementById('inventory-search').value = '';
@@ -1111,11 +1111,11 @@ function searchInventory() {
 
     if (results.length > 0) {
         resDiv.style.display = 'block';
-        resDiv.style.background = 'var(--bg-card)'; // Fondo sÃ³lido
+        resDiv.style.background = 'var(--bg-card)'; // Fondo sólido
         resDiv.style.borderRadius = '12px';
         resDiv.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
 
-        // Ocultar secciÃ³n del carrito para que no se vea amontonado
+        // Ocultar sección del carrito para que no se vea amontonado
         if (cartSection) cartSection.style.display = 'none';
 
         results.forEach(r => {
@@ -1175,9 +1175,9 @@ function addToCart(record) {
     if (type === "Venta") {
         let currentQty = cartItems[record.id] ? cartItems[record.id].qty : 0;
         let available = parseInt(record.data.Cantidad) || 0;
-        
+
         if (currentQty + 1 > available) {
-            return showToast("Stock agotado. No puedes facturar mÃ¡s unidades de este producto.", "error");
+            return showToast("Stock agotado. No puedes facturar más unidades de este producto.", "error");
         }
     }
 
@@ -1201,7 +1201,7 @@ function updateCartQty(id, change) {
 
         if (type === "Venta" && change > 0) {
             if (currentQty + change > available) {
-                return showToast("Stock agotado. No puedes facturar mÃ¡s unidades de este producto.", "error");
+                return showToast("Stock agotado. No puedes facturar más unidades de este producto.", "error");
             }
         }
 
@@ -1228,7 +1228,7 @@ function toggleMovementType() {
         btnProcess.className = "btn btn-primary btn-block";
     } else {
         clientLabel.innerHTML = `<i data-lucide="truck" style="width: 12px; margin-right: 4px;"></i> Origen / Proveedor (Opcional)`;
-        financials.style.display = 'none'; // Al comprar mercaderÃ­a, el costo difiere del precio de venta, no se asume
+        financials.style.display = 'none'; // Al comprar mercadería, el costo difiere del precio de venta, no se asume
         btnProcess.innerText = "Registrar Ingreso de Stock";
         btnProcess.className = "btn btn-warning btn-block";
     }
@@ -1275,7 +1275,7 @@ function renderCart() {
         c.appendChild(div);
     });
 
-    // Desglose de FacturaciÃ³n
+    // Desglose de Facturación
     let subtotalSinIva = total / 1.15;
     let iva = total - subtotalSinIva;
 
@@ -1292,7 +1292,7 @@ async function processMovement() {
     let clientCedula = isCF ? '9999999999' : document.getElementById('mov-client-cedula').value.trim();
 
     if (!isCF && document.getElementById('cedula-error') && document.getElementById('cedula-error').style.display === 'block') {
-        return showToast("La cÃ©dula/RUC tiene una longitud incorrecta.", "warning");
+        return showToast("La cédula/RUC tiene una longitud incorrecta.", "warning");
     }
 
     let payload = Object.values(cartItems).map(i => {
@@ -1328,13 +1328,13 @@ async function processMovement() {
         });
         if (res.ok) {
             const data = await res.json();
-            
+
             if (type === "Venta") {
                 Object.values(cartItems).forEach(i => {
                     let available = parseInt(i.record.data.Cantidad) || 0;
                     let remaining = available - i.qty;
                     if (remaining <= 3 && remaining > 0) {
-                        setTimeout(() => showToast(`Â¡AtenciÃ³n! El producto ${i.record.data.Nombre || 'Item'} estÃ¡ por agotarse (quedan ${remaining}).`, "warning"), 500);
+                        setTimeout(() => showToast(`¡Atención! El producto ${i.record.data.Nombre || 'Item'} está por agotarse (quedan ${remaining}).`, "warning"), 500);
                     } else if (remaining <= 0) {
                         setTimeout(() => showToast(`El producto ${i.record.data.Nombre || 'Item'} se ha agotado por completo.`, "error"), 500);
                     }
@@ -1356,7 +1356,7 @@ async function processMovement() {
                 openTicketModal(data.audit_id);
             }
 
-            showToast(`Â¡${type} procesada con Ã©xito! El movimiento quedÃ³ registrado en AuditorÃ­a.`, "success");
+            showToast(`¡${type} procesada con éxito! El movimiento quedó registrado en Auditoría.`, "success");
         }
     } catch (e) {
         console.error(e);
@@ -1370,13 +1370,13 @@ function toggleConsumidorFinal() {
     let nameInput = document.getElementById('mov-client-name');
     let cedInput = document.getElementById('mov-client-cedula');
     let radios = document.getElementById('search-type-radios');
-    
+
     if (isCF) {
         nameInput.value = 'Consumidor Final';
         nameInput.disabled = true;
         cedInput.value = '9999999999';
         cedInput.disabled = true;
-        if(radios) {
+        if (radios) {
             radios.style.opacity = '0.5';
             radios.style.pointerEvents = 'none';
         }
@@ -1386,7 +1386,7 @@ function toggleConsumidorFinal() {
         nameInput.disabled = false;
         cedInput.value = '';
         cedInput.disabled = false;
-        if(radios) {
+        if (radios) {
             radios.style.opacity = '1';
             radios.style.pointerEvents = 'auto';
         }
@@ -1409,18 +1409,18 @@ function validateCedulaInput() {
     let typeEl = document.querySelector('input[name="cedula-type"]:checked');
     let type = typeEl ? typeEl.value : 'cedula';
     let errorEl = document.getElementById('cedula-error');
-    
+
     input.value = input.value.replace(/\D/g, '');
-    
+
     let expectedLength = type === 'cedula' ? 10 : 13;
     input.maxLength = expectedLength;
-    
+
     if (input.value.length > expectedLength) {
         input.value = input.value.slice(0, expectedLength);
     }
-    
+
     if (input.value.length > 0 && input.value.length !== expectedLength) {
-        errorEl.textContent = `Debe tener exactamente ${expectedLength} dÃ­gitos.`;
+        errorEl.textContent = `Debe tener exactamente ${expectedLength} dígitos.`;
         errorEl.style.display = 'block';
     } else {
         errorEl.style.display = 'none';
@@ -1431,7 +1431,7 @@ function autoFillClient(source) {
     if (!window.clientsData) return;
     let nameInput = document.getElementById('mov-client-name');
     let cedInput = document.getElementById('mov-client-cedula');
-    
+
     if (source === 'name') {
         let match = window.clientsData.find(c => c.name === nameInput.value);
         if (match && match.cedula) {
@@ -1478,14 +1478,14 @@ async function openAuditsModal() {
         tbody.innerHTML = '';
 
         if (audits.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay registros aÃºn.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay registros aún.</td></tr>';
             return;
         }
 
         audits.forEach(a => {
             let tr = document.createElement('tr');
 
-            // Si la acciÃ³n incluye Venta o Compra, resaltamos visualmente el recuadro
+            // Si la acción incluye Venta o Compra, resaltamos visualmente el recuadro
             let actionHtml = a.action;
             if (a.action.includes('Venta |')) {
                 actionHtml = `<span style="color: var(--success); font-weight: bold;">${a.action}</span>`;
@@ -1541,7 +1541,7 @@ async function checkEmail() {
             document.getElementById('step-password').style.display = 'block';
             document.getElementById('footer-default').style.display = 'block';
         } else {
-            showToast("El correo no existe o no estÃ¡ registrado.", "error");
+            showToast("El correo no existe o no está registrado.", "error");
         }
     } catch (e) {
         console.error(e);
@@ -1557,7 +1557,7 @@ function backToEmail() {
 async function login() {
     const email = document.getElementById('email-input').value;
     const password = document.getElementById('password-input').value;
-    if (!password) return showToast("Ingresa tu contraseÃ±a", "warning");
+    if (!password) return showToast("Ingresa tu contraseña", "warning");
 
     try {
         const res = await fetch('/auth/login', {
@@ -1569,7 +1569,7 @@ async function login() {
             window.location.href = "/dashboard";
         } else {
             const err = await res.json();
-            showToast("Error: " + (err.detail || "Credenciales invÃ¡lidas"), "error");
+            showToast("Error: " + (err.detail || "Credenciales inválidas"), "error");
         }
     } catch (e) {
         console.error(e);
@@ -1583,7 +1583,7 @@ async function checkRegisterEmail() {
     const typeEl = document.querySelector('input[name="reg-cedula-type"]:checked');
     const type = typeEl ? typeEl.value : 'cedula';
     const expectedLength = type === 'cedula' ? 10 : 13;
-    
+
     if (!name || !email || !cedula) return showToast("Por favor ingresa nombre, correo y cédula", "warning");
     if (!email.includes('@')) return showToast("El correo debe llevar '@'", "warning");
     if (cedula.length !== expectedLength) return showToast(`La cédula/RUC debe tener exactamente ${expectedLength} dígitos numéricos`, "warning");
@@ -1611,7 +1611,7 @@ async function checkRegisterEmail() {
 
 function showConfirmPass() {
     const pass = document.getElementById('reg-pass').value;
-    if (!pass) return showToast("Ingresa una contraseÃ±a", "warning");
+    if (!pass) return showToast("Ingresa una contraseña", "warning");
 
     document.getElementById('reg-step-2').style.display = 'none';
     document.getElementById('reg-step-3').style.display = 'block';
@@ -1638,15 +1638,15 @@ async function registerUser() {
     const expectedLength = type === 'cedula' ? 10 : 13;
 
     if (!name || !email || !password || !cedula) return showToast("Llena todos los campos", "warning");
-    if (password !== confirm) return showToast("Las contraseÃ±as no coinciden", "error");
-    if (cedula.length !== expectedLength) return showToast(`La cÃ©dula/RUC debe tener exactamente ${expectedLength} dÃ­gitos numÃ©ricos`, "error");
-    if (!businessCode) return showToast("El cÃ³digo de negocio es obligatorio", "warning");
+    if (password !== confirm) return showToast("Las contraseñas no coinciden", "error");
+    if (cedula.length !== expectedLength) return showToast(`La cédula/RUC debe tener exactamente ${expectedLength} dígitos numéricos`, "error");
+    if (!businessCode) return showToast("El código de negocio es obligatorio", "warning");
     if (window.registerFlow === 'owner' && !businessName) return showToast("El nombre del negocio es obligatorio", "warning");
 
-    const payload = { 
-        full_name: name, 
-        email: email, 
-        password: password, 
+    const payload = {
+        full_name: name,
+        email: email,
+        password: password,
         cedula: cedula,
         business_code: businessCode
     };
@@ -1695,19 +1695,19 @@ function updateRegisterCedulaLength() {
     let typeEl = document.querySelector('input[name="reg-cedula-type"]:checked');
     let type = typeEl ? typeEl.value : 'cedula';
     let errorEl = document.getElementById('reg-cedula-error');
-    
+
     input.value = input.value.replace(/\D/g, '');
-    
+
     let expectedLength = type === 'cedula' ? 10 : 13;
     input.maxLength = expectedLength;
-    
+
     if (input.value.length > expectedLength) {
         input.value = input.value.slice(0, expectedLength);
     }
-    
+
     if (errorEl) {
         if (input.value.length > 0 && input.value.length !== expectedLength) {
-            errorEl.textContent = `Debe tener exactamente ${expectedLength} dÃ­gitos.`;
+            errorEl.textContent = `Debe tener exactamente ${expectedLength} dígitos.`;
             errorEl.style.display = 'block';
         } else {
             errorEl.style.display = 'none';
@@ -1715,12 +1715,12 @@ function updateRegisterCedulaLength() {
     }
 }
 
-// Al cargar la pÃ¡gina, si hay un hash #table-X, cargar esa tabla automÃ¡ticamente
-// (pasa cuando se redirige desde otra pÃ¡gina al hacer clic en una tabla del sidebar)
+// Al cargar la página, si hay un hash #table-X, cargar esa tabla automáticamente
+// (pasa cuando se redirige desde otra página al hacer clic en una tabla del sidebar)
 function checkHashAndLoadTable() {
     if (window.location.pathname.includes('tables-view')) {
         const hash = window.location.hash; // ej: "#table-3"
-        const match = hash.match(/#table-(\d+)/); // mÃ¡s flexible sin ^ y $
+        const match = hash.match(/#table-(\d+)/); // más flexible sin ^ y $
         if (match) {
             const tableId = match[1];
             // Limpiar el hash para que no quede en la URL
