@@ -1145,6 +1145,18 @@ document.addEventListener('click', (e) => {
 });
 
 function addToCart(record) {
+    let typeEl = document.querySelector('input[name="mov-type"]:checked');
+    let type = typeEl ? typeEl.value : "Venta";
+
+    if (type === "Venta") {
+        let currentQty = cartItems[record.id] ? cartItems[record.id].qty : 0;
+        let available = parseInt(record.data.Cantidad) || 0;
+        
+        if (currentQty + 1 > available) {
+            return showToast("Stock agotado. No puedes facturar más unidades de este producto.", "error");
+        }
+    }
+
     if (!cartItems[record.id]) {
         cartItems[record.id] = { record, qty: 1 };
     } else {
@@ -1156,7 +1168,19 @@ function addToCart(record) {
 }
 
 function updateCartQty(id, change) {
+    let typeEl = document.querySelector('input[name="mov-type"]:checked');
+    let type = typeEl ? typeEl.value : "Venta";
+
     if (cartItems[id]) {
+        let currentQty = cartItems[id].qty;
+        let available = parseInt(cartItems[id].record.data.Cantidad) || 0;
+
+        if (type === "Venta" && change > 0) {
+            if (currentQty + change > available) {
+                return showToast("Stock agotado. No puedes facturar más unidades de este producto.", "error");
+            }
+        }
+
         cartItems[id].qty += change;
         if (cartItems[id].qty <= 0) {
             delete cartItems[id]; // remover si llega a 0
@@ -1280,6 +1304,19 @@ async function processMovement() {
         });
         if (res.ok) {
             const data = await res.json();
+            
+            if (type === "Venta") {
+                Object.values(cartItems).forEach(i => {
+                    let available = parseInt(i.record.data.Cantidad) || 0;
+                    let remaining = available - i.qty;
+                    if (remaining <= 3 && remaining > 0) {
+                        setTimeout(() => showToast(`¡Atención! El producto ${i.record.data.Nombre || 'Item'} está por agotarse (quedan ${remaining}).`, "warning"), 500);
+                    } else if (remaining <= 0) {
+                        setTimeout(() => showToast(`El producto ${i.record.data.Nombre || 'Item'} se ha agotado por completo.`, "error"), 500);
+                    }
+                });
+            }
+
             cartItems = {};
             document.getElementById('mov-client-name').value = '';
             document.getElementById('mov-client-cedula').value = '';
