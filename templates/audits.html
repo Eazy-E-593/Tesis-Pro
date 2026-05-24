@@ -3,18 +3,71 @@
 {% block title %}MicroBase - Historial Fiscal{% endblock %}
 
 {% block content %}
-<div style="flex: 1; padding: 40px; display: flex; flex-direction: column; overflow-y: auto;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-        <h1 style="font-size: 1.8rem; display: flex; align-items: center; gap: 12px; font-weight: bold;">
+<div class="audits-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+        <h1 style="font-size: 1.8rem; display: flex; align-items: center; gap: 12px; font-weight: bold; margin: 0;">
             <i data-lucide="clipboard-list" style="width: 28px; height: 28px; color: var(--primary);"></i>
             Historial Fiscal y Auditoría
         </h1>
-        <div style="font-size: 0.9rem; color: var(--text-muted);">
-            Se muestran los últimos 100 movimientos registrados.
+        <div style="font-size: 0.9rem; color: var(--text-muted);" id="audits-counter">
+            {% if q %}
+                Encontrados {{ total_count }} resultados para "{{ q }}". Mostrando {{ audits|length }}.
+            {% else %}
+                Mostrando {{ audits|length }} de {{ total_count }} movimientos.
+            {% endif %}
         </div>
     </div>
 
-    <div style="background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    <form method="get" action="/audits-view" style="display: flex; gap: 12px; margin-bottom: 24px; width: 100%;">
+        <div style="position: relative; flex: 1; display: flex; align-items: center;">
+            <i data-lucide="search" style="position: absolute; left: 14px; width: 18px; height: 18px; color: var(--text-muted); pointer-events: none;"></i>
+            <input type="text" name="q" id="audit-search-input" value="{{ q }}" class="input-neumorphic" placeholder="Buscar por ticket (ej: TKT-150), operador, detalle de la operación, fecha (YYYY-MM-DD)..." style="padding-left: 44px; width: 100%; height: 46px; box-sizing: border-box;" list="audit-suggestions" autocomplete="off" oninput="fetchAuditSuggestions(this.value)">
+            <datalist id="audit-suggestions">
+                <option value="Venta"></option>
+                <option value="Compra"></option>
+                <option value="Creación"></option>
+                <option value="Edición"></option>
+                <option value="Eliminación"></option>
+            </datalist>
+            {% if q %}
+            <a href="/audits-view" style="position: absolute; right: 14px; color: var(--text-muted); display: flex; align-items: center; text-decoration: none;" title="Limpiar búsqueda">
+                <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+            </a>
+            {% endif %}
+        </div>
+        <button type="submit" class="btn btn-primary" style="height: 46px; padding: 0 24px; display: inline-flex; align-items: center; justify-content: center; font-weight: 600;">
+            <i data-lucide="search" style="width: 18px; height: 18px; margin-right: 6px;"></i>
+            Buscar
+        </button>
+    </form>
+
+    <script>
+        async function fetchAuditSuggestions(val) {
+            if (!val || val.trim().length < 1) return;
+            try {
+                const res = await fetch(`/api/audits/suggest?q=${encodeURIComponent(val)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const dl = document.getElementById('audit-suggestions');
+                    const statics = ["Venta", "Compra", "Creación", "Edición", "Eliminación"];
+                    let html = '';
+                    statics.forEach(s => {
+                        html += `<option value="${s}"></option>`;
+                    });
+                    data.forEach(item => {
+                        if (!statics.includes(item)) {
+                            html += `<option value="${item}"></option>`;
+                        }
+                    });
+                    dl.innerHTML = html;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    </script>
+
+    <div class="table-container glass-panel" style="margin-bottom: 24px;">
         <div class="table-scroll-area">
             <table class="data-table" style="width: 100%;">
             <thead>
@@ -74,5 +127,14 @@
         </table>
         </div>
     </div>
+
+    {% if has_more %}
+    <div style="display: flex; justify-content: center; margin-top: 24px; margin-bottom: 24px;">
+        <a href="/audits-view?q={{ q }}&limit={{ limit + 25 }}" class="btn btn-secondary" style="padding: 12px 24px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: transform var(--transition-fast);">
+            <i data-lucide="chevrons-down" style="width: 18px; height: 18px; color: var(--primary);"></i>
+            Cargar más movimientos (+25)
+        </a>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

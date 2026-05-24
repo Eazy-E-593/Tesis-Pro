@@ -388,6 +388,15 @@ body {
     position: relative;
 }
 
+.audits-container {
+    flex: 1;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
 .top-header {
     margin-bottom: 24px;
 }
@@ -1506,6 +1515,12 @@ input:checked+.slider:before {
         min-height: auto;
         overflow-y: visible;
         -webkit-overflow-scrolling: touch;
+    }
+
+    .audits-container {
+        padding: 20px 16px !important;
+        overflow-y: visible !important;
+        height: auto !important;
     }
 
     .table-actions {

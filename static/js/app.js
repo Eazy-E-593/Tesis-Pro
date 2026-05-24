@@ -1292,7 +1292,7 @@ async function processMovement() {
 
             // Abrir Ticket
             if (data.audit_id) {
-                window.open('/ticket/' + data.audit_id, '_blank', 'width=400,height=600');
+                openTicketModal(data.audit_id);
             }
 
             showToast(`¡${type} procesada con éxito! El movimiento quedó registrado en Auditoría.`, "success");
@@ -1439,7 +1439,7 @@ async function openAuditsModal() {
                 dateStr = d.toLocaleString();
             }
 
-            let printBtn = a.details ? `<button onclick="window.open('/ticket/${a.id}', '_blank', 'width=400,height=600')" title="Imprimir" style="background: transparent; border: none; cursor: pointer; color: var(--primary);"><i data-lucide="printer" style="width:16px;"></i></button>` : '';
+            let printBtn = a.details ? `<button onclick="openTicketModal('${a.id}')" title="Imprimir" style="background: transparent; border: none; cursor: pointer; color: var(--primary);"><i data-lucide="printer" style="width:16px;"></i></button>` : '';
             tr.innerHTML = `
                 <td>#${a.id}</td>
                 <td><span class="badge" style="background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">${a.employee_code || '?'}</span></td>
@@ -1453,6 +1453,11 @@ async function openAuditsModal() {
         console.error(e);
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--danger);">Error al cargar historial</td></tr>';
     }
+}
+
+function openTicketModal(id) {
+    document.getElementById('ticket-iframe').src = '/ticket/' + id;
+    document.getElementById('ticket-modal').classList.add('active');
 }
 
 // ---- Authentication ----

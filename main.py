@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from sqlalchemy import cast, String, or_
 import database, models, schemas
 import uuid
 from sqlalchemy.orm.attributes import flag_modified
@@ -120,16 +121,52 @@ async def tables_view(request: Request, db: Session = Depends(database.get_db)):
     return templates.TemplateResponse("index.html", {"request": request, "tables": tables, "user": user})
 
 @app.get("/audits-view", response_class=HTMLResponse, include_in_schema=False)
-async def audits_view(request: Request, db: Session = Depends(database.get_db)):
+async def audits_view(request: Request, q: str = None, limit: int = 25, db: Session = Depends(database.get_db)):
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    audits = db.query(models.AppAudit).order_by(models.AppAudit.id.desc()).limit(100).all()
+    
+    query = db.query(models.AppAudit)
+    
+    if q:
+        q_clean = q.strip()
+        ticket_id = None
+        if q_clean.lower().startswith("tkt-"):
+            try:
+                ticket_id = int(q_clean[4:])
+            except ValueError:
+                pass
+        else:
+            try:
+                ticket_id = int(q_clean)
+            except ValueError:
+                pass
+                
+        filters = [
+            models.AppAudit.employee_code.ilike(f"%{q_clean}%"),
+            models.AppAudit.action.ilike(f"%{q_clean}%"),
+            cast(models.AppAudit.timestamp, String).ilike(f"%{q_clean}%")
+        ]
+        
+        if ticket_id is not None:
+            filters.append(models.AppAudit.id == ticket_id)
+            
+        query = query.filter(or_(*filters))
+        
+    total_count = query.count()
+    audits = query.order_by(models.AppAudit.id.desc()).limit(limit).all()
+    has_more = total_count > len(audits)
+    
     return templates.TemplateResponse("audits.html", {
         "request": request, 
         "user": user, 
-        "audits": audits
+        "audits": audits,
+        "q": q or "",
+        "limit": limit,
+        "has_more": has_more,
+        "total_count": total_count
     })
+
 
 @app.get("/settings", response_class=HTMLResponse, include_in_schema=False)
 async def settings_page(request: Request, db: Session = Depends(database.get_db)):
@@ -495,6 +532,55 @@ def api_suppliers_suggest(db: Session = Depends(database.get_db)):
             if n and n not in names:
                 names.append(n)
     return names
+
+@app.get("/api/audits/suggest", tags=["audit"])
+def api_audits_suggest(q: str = "", db: Session = Depends(database.get_db)):
+    if not q or len(q.strip()) < 1:
+        return []
+    q_clean = q.strip()
+    
+    suggestions = []
+    
+    # 1. Operators matching q
+    operators = db.query(models.AppAudit.employee_code).filter(
+        models.AppAudit.employee_code.ilike(f"%{q_clean}%")
+    ).distinct().limit(5).all()
+    for op in operators:
+        if op[0] and op[0] not in suggestions:
+            suggestions.append(op[0])
+            
+    # 2. Actions matching q
+    actions = db.query(models.AppAudit.action).filter(
+        models.AppAudit.action.ilike(f"%{q_clean}%")
+    ).distinct().limit(5).all()
+    for act in actions:
+        if act[0] and act[0] not in suggestions:
+            suggestions.append(act[0])
+            
+    # 3. Tickets matching q
+    ticket_id = None
+    if q_clean.lower().startswith("tkt-"):
+        try:
+            ticket_id = int(q_clean[4:])
+        except ValueError:
+            pass
+    else:
+        try:
+            ticket_id = int(q_clean)
+        except ValueError:
+            pass
+            
+    if ticket_id is not None:
+        tickets = db.query(models.AppAudit.id).filter(
+            cast(models.AppAudit.id, String).ilike(f"%{ticket_id}%")
+        ).limit(5).all()
+        for t in tickets:
+            tkt_str = f"TKT-{t[0]}"
+            if tkt_str not in suggestions:
+                suggestions.append(tkt_str)
+                
+    return suggestions
+
 
 @app.get("/api/audits", tags=["audit"])
 def api_get_audits(request: Request, db: Session = Depends(database.get_db)):
