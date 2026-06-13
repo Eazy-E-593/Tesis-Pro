@@ -172,13 +172,25 @@ async def tables_view(request: Request, db: Session = Depends(database.get_db)):
     return templates.TemplateResponse("index.html", {"request": request, "tables": tables, "user": user})
 
 @app.get("/audits-view", response_class=HTMLResponse, include_in_schema=False)
-async def audits_view(request: Request, q: str = None, limit: int = 25, db: Session = Depends(database.get_db)):
+async def audits_view(request: Request, q: str = None, tab: str = "active", limit: int = 25, db: Session = Depends(database.get_db)):
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
     
     query = db.query(models.AppAudit).filter(models.AppAudit.business_id == user.business_id)
     
+    # Filter by tab
+    if tab == "pending":
+        query = query.filter(models.AppAudit.status == "pending_change")
+    elif tab == "annulled":
+        query = query.filter(models.AppAudit.status == "annulled")
+    else:
+        query = query.filter(or_(
+            models.AppAudit.status == "active",
+            models.AppAudit.status == "modified",
+            models.AppAudit.status == None
+        ))
+        
     if q:
         q_clean = q.strip()
         ticket_id = None
@@ -763,10 +775,251 @@ def api_reject_user(user_id: int, request: Request, db: Session = Depends(databa
     target_email = target_user.email
     target_name = target_user.full_name
         
-    db.delete(target_user)
+    if target_status == "pending":
+        db.delete(target_user)
+        action = "rejected"
+    else:
+        target_user.status = "fired"
+        action = "deleted"
+        
     db.commit()
     
-    action = "rejected" if target_status == "pending" else "deleted"
     success, error_msg = send_status_email(target_email, target_name, action)
+    
+    return {"ok": True, "email_sent": success, "email_error": error_msg if not success else None}
+
+@app.post("/api/audits/{audit_id}/request-modification", tags=["audit"])
+def api_request_modification(audit_id: int, payload: schemas.RequestModificationPayload, request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="No autorizado")
+        
+    audit = db.query(models.AppAudit).filter(models.AppAudit.id == audit_id, models.AppAudit.business_id == user.business_id).first()
+    if not audit:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+        
+    if audit.status in ["pending_change", "annulled"]:
+        raise HTTPException(status_code=400, detail="Esta factura ya tiene una solicitud pendiente o está anulada")
+        
+    # Reconstruct proposed details
+    orig_details = audit.details or {}
+    orig_items = {item.get("record_id"): item for item in orig_details.get("items", [])}
+    
+    proposed_items = []
+    new_total = 0.0
+    for item in payload.items:
+        orig_item = orig_items.get(item.record_id)
+        if not orig_item:
+            continue
+        price = float(orig_item.get("price", 0.0))
+        subtotal = float(item.quantity_change) * price
+        new_total += subtotal
+        proposed_items.append({
+            "record_id": item.record_id,
+            "quantity_change": float(item.quantity_change),
+            "name": orig_item.get("name"),
+            "price": price,
+            "subtotal": subtotal
+        })
+        
+    new_subtotal = new_total / 1.15
+    new_iva = new_total - new_subtotal
+    
+    proposed_details = {
+        "type": orig_details.get("type"),
+        "client_name": orig_details.get("client_name"),
+        "client_cedula": orig_details.get("client_cedula"),
+        "subtotal": round(new_subtotal, 2),
+        "iva": round(new_iva, 2),
+        "total": round(new_total, 2),
+        "items": proposed_items
+    }
+    
+    audit.status = "pending_change"
+    audit.modification_notes = payload.notes
+    audit.proposed_details = proposed_details
+    
+    db.commit()
+    return {"ok": True}
+
+@app.post("/api/audits/{audit_id}/resolve-modification", tags=["audit"])
+def api_resolve_modification(audit_id: int, payload: schemas.ResolveModificationPayload, request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="No autorizado")
+        
+    audit = db.query(models.AppAudit).filter(models.AppAudit.id == audit_id, models.AppAudit.business_id == user.business_id).first()
+    if not audit:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+        
+    if payload.action == "reject":
+        audit.status = "active"
+        audit.proposed_details = None
+        db.commit()
+        return {"ok": True}
+        
+    type_op = (audit.details or {}).get("type", "Venta")
+    
+    if payload.action == "approve":
+        if not audit.proposed_details:
+            raise HTTPException(status_code=400, detail="No hay detalles propuestos para aprobar")
+            
+        old_items = {item["record_id"]: item for item in (audit.details or {}).get("items", [])}
+        new_items = {item["record_id"]: item for item in audit.proposed_details.get("items", [])}
+        all_record_ids = set(list(old_items.keys()) + list(new_items.keys()))
+        
+        for record_id in all_record_ids:
+            db_record = db.query(models.AppRecord).filter(models.AppRecord.id == record_id).first()
+            if not db_record:
+                continue
+            
+            raw_qty = db_record.data.get('Cantidad', 0)
+            try:
+                current_qty = float(raw_qty) if str(raw_qty).strip() != "" else 0.0
+            except (ValueError, TypeError):
+                current_qty = 0.0
+                
+            old_qty = float(old_items.get(record_id, {}).get("quantity_change", 0.0))
+            new_qty = float(new_items.get(record_id, {}).get("quantity_change", 0.0))
+            
+            if type_op == "Venta":
+                db_record.data['Cantidad'] = current_qty + (old_qty - new_qty)
+            else:
+                db_record.data['Cantidad'] = current_qty + (new_qty - old_qty)
+                
+            flag_modified(db_record, "data")
+            
+        audit.details = audit.proposed_details
+        audit.proposed_details = None
+        
+        label_sujeto = "Proveedor" if type_op == "Compra" else "Cliente"
+        client_name = audit.details.get("client_name") or "Consumidor Final"
+        client_cedula = audit.details.get("client_cedula")
+        cedula_text = f" | Cédula/RUC: {client_cedula}" if client_cedula else ""
+        total_val = audit.details.get("total", 0.0)
+        audit.action = f"{type_op} | {label_sujeto}: {client_name}{cedula_text} | Total: ${total_val:.2f}"
+        audit.status = "modified"
+        
+        db.commit()
+        return {"ok": True}
+        
+    elif payload.action == "annul":
+        old_items = (audit.details or {}).get("items", [])
+        for item in old_items:
+            record_id = item.get("record_id")
+            db_record = db.query(models.AppRecord).filter(models.AppRecord.id == record_id).first()
+            if not db_record:
+                continue
+                
+            raw_qty = db_record.data.get('Cantidad', 0)
+            try:
+                current_qty = float(raw_qty) if str(raw_qty).strip() != "" else 0.0
+            except (ValueError, TypeError):
+                current_qty = 0.0
+                
+            old_qty = float(item.get("quantity_change", 0.0))
+            
+            if type_op == "Venta":
+                db_record.data['Cantidad'] = current_qty + old_qty
+            else:
+                db_record.data['Cantidad'] = current_qty - old_qty
+                
+            flag_modified(db_record, "data")
+            
+        audit.status = "annulled"
+        audit.proposed_details = None
+        db.commit()
+        return {"ok": True}
+        
+    raise HTTPException(status_code=400, detail="Acción no válida")
+
+@app.post("/api/audits/{audit_id}/direct-annul", tags=["audit"])
+def api_direct_annul(audit_id: int, payload: schemas.DirectAnnulPayload, request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="No autorizado")
+        
+    audit = db.query(models.AppAudit).filter(models.AppAudit.id == audit_id, models.AppAudit.business_id == user.business_id).first()
+    if not audit:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+        
+    type_op = (audit.details or {}).get("type", "Venta")
+    old_items = (audit.details or {}).get("items", [])
+    
+    for item in old_items:
+        record_id = item.get("record_id")
+        db_record = db.query(models.AppRecord).filter(models.AppRecord.id == record_id).first()
+        if not db_record:
+            continue
+            
+        raw_qty = db_record.data.get('Cantidad', 0)
+        try:
+            current_qty = float(raw_qty) if str(raw_qty).strip() != "" else 0.0
+        except (ValueError, TypeError):
+            current_qty = 0.0
+            
+        old_qty = float(item.get("quantity_change", 0.0))
+        
+        if type_op == "Venta":
+            db_record.data['Cantidad'] = current_qty + old_qty
+        else:
+            db_record.data['Cantidad'] = current_qty - old_qty
+            
+        flag_modified(db_record, "data")
+        
+    audit.status = "annulled"
+    audit.modification_notes = payload.notes
+    audit.proposed_details = None
+    db.commit()
+    return {"ok": True}
+
+@app.get("/api/audits/{audit_id}", tags=["audit"])
+def api_get_audit(audit_id: int, request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    audit = db.query(models.AppAudit).filter(models.AppAudit.id == audit_id, models.AppAudit.business_id == user.business_id).first()
+    if not audit:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    return {
+        "id": audit.id,
+        "employee_code": audit.employee_code,
+        "action": audit.action,
+        "details": audit.details,
+        "status": audit.status,
+        "modification_notes": audit.modification_notes,
+        "proposed_details": audit.proposed_details
+    }
+
+@app.get("/api/users/inactive", tags=["admin"])
+def api_get_inactive_users(request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="No autorizado")
+    
+    inactive = db.query(models.User).filter(
+        models.User.business_id == user.business_id,
+        models.User.status == "fired"
+    ).all()
+    
+    return [{"id": u.id, "full_name": u.full_name, "email": u.email, "role": u.role, "employee_code": u.employee_code} for u in inactive]
+
+@app.post("/api/users/{user_id}/rehire", tags=["admin"])
+def api_rehire_user(user_id: int, request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="No autorizado")
+        
+    target_user = db.query(models.User).filter(models.User.id == user_id, models.User.business_id == user.business_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    if target_user.status != "fired":
+        raise HTTPException(status_code=400, detail="Este usuario no está de baja")
+        
+    target_user.status = "active"
+    db.commit()
+    
+    success, error_msg = send_status_email(target_user.email, target_user.full_name, "approved")
     
     return {"ok": True, "email_sent": success, "email_error": error_msg if not success else None}

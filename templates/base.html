@@ -231,6 +231,164 @@
         </div>
     </div>
 
+    <!-- Request Correction Modal -->
+    <div id="request-correction-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 550px; width: 90%; display: flex; flex-direction: column;">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-glass); padding-bottom: 12px;">
+                <h2 style="display: flex; align-items: center; gap: 8px; font-size: 1.25rem;"><i data-lucide="edit-3"></i> Solicitar Corrección de Ticket</h2>
+                <button class="close-btn" onclick="document.getElementById('request-correction-modal').classList.remove('active')" style="background: transparent; border: none; color: white; cursor: pointer;">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto; padding-top: 16px;">
+                <form id="request-correction-form" onsubmit="submitCorrectionRequest(event)">
+                    <input type="hidden" id="rc-audit-id">
+                    <div style="margin-bottom: 16px;">
+                        <span style="font-weight: 500; font-size: 0.95rem; color: var(--text-main); display: block; margin-bottom: 8px;">Detalle de los Productos a Corregir:</span>
+                        <div class="table-container glass-panel" style="padding: 0; border: 1px solid var(--border-glass);">
+                            <table class="data-table" style="width: 100%; font-size: 0.9rem;">
+                                <thead>
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th style="width: 100px; text-align: center;">Cantidad Orig.</th>
+                                        <th style="width: 120px; text-align: center;">Cantidad Nueva</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rc-items-body">
+                                    <!-- Dynamic items -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label for="rc-notes" style="font-weight: 500; font-size: 0.95rem; color: var(--text-main); display: block; margin-bottom: 8px;">Motivo / Explicación del Cambio: *</label>
+                        <textarea id="rc-notes" class="input-neumorphic" style="width: 100%; height: 100px; box-sizing: border-box; padding: 12px; font-family: inherit; resize: vertical;" placeholder="Escribe el motivo detallado de la corrección..." required></textarea>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('request-correction-modal').classList.remove('active')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" id="btn-submit-rc">Enviar Solicitud</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resolve Correction Modal -->
+    <div id="resolve-correction-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 800px; width: 95%; display: flex; flex-direction: column;">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-glass); padding-bottom: 12px;">
+                <h2 style="display: flex; align-items: center; gap: 8px; font-size: 1.25rem;"><i data-lucide="git-pull-request"></i> Resolver Solicitud de Cambio</h2>
+                <button class="close-btn" onclick="document.getElementById('resolve-correction-modal').classList.remove('active')" style="background: transparent; border: none; color: white; cursor: pointer;">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="max-height: 75vh; overflow-y: auto; padding-top: 16px;">
+                <input type="hidden" id="resolve-audit-id">
+                
+                <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+                    <div style="display: flex; gap: 8px; align-items: center; font-weight: 600; color: #f59e0b; margin-bottom: 8px;">
+                        <i data-lucide="message-square" style="width: 18px; height: 18px;"></i>
+                        <span>Motivo de la Solicitud (Operador: <span id="resolve-operator-code"></span>)</span>
+                    </div>
+                    <p id="resolve-justification" style="margin: 0; color: var(--text-main); font-size: 0.95rem; line-height: 1.5; font-style: italic;"></p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; min-width: 0;">
+                    <!-- Original column -->
+                    <div style="display: flex; flex-direction: column;">
+                        <h3 style="font-size: 1rem; color: #ef4444; border-bottom: 2px solid rgba(239, 68, 68, 0.3); padding-bottom: 8px; margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                            <i data-lucide="arrow-left-right" style="width:16px;"></i> Factura Original
+                        </h3>
+                        <div class="table-container glass-panel" style="padding: 0; border: 1px solid var(--border-glass); overflow: hidden;">
+                            <table class="data-table" style="width: 100%; font-size: 0.85rem;">
+                                <thead>
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th style="width: 60px; text-align: center;">Cant</th>
+                                        <th style="width: 80px; text-align: right;">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="resolve-orig-body">
+                                    <!-- Filled by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="text-align: right; margin-top: 12px; font-weight: bold; color: var(--text-main); font-size: 1rem;">
+                            Total: <span id="resolve-orig-total" style="color: #ef4444;">$0.00</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Proposed column -->
+                    <div style="display: flex; flex-direction: column;">
+                        <h3 style="font-size: 1rem; color: #10b981; border-bottom: 2px solid rgba(16, 185, 129, 0.3); padding-bottom: 8px; margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                            <i data-lucide="check" style="width:16px;"></i> Propuesta de Cambio
+                        </h3>
+                        <div class="table-container glass-panel" style="padding: 0; border: 1px solid var(--border-glass); overflow: hidden;">
+                            <table class="data-table" style="width: 100%; font-size: 0.85rem;">
+                                <thead>
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th style="width: 60px; text-align: center;">Cant</th>
+                                        <th style="width: 80px; text-align: right;">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="resolve-prop-body">
+                                    <!-- Filled by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="text-align: right; margin-top: 12px; font-weight: bold; color: var(--text-main); font-size: 1rem;">
+                            Total: <span id="resolve-prop-total" style="color: #10b981;">$0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; gap: 12px; margin-top: 32px; border-top: 1px solid var(--border-glass); padding-top: 20px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('resolve-correction-modal').classList.remove('active')">Cerrar</button>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-secondary" onclick="resolveRequest('reject')" style="background: rgba(255,255,255,0.05); color: var(--text-main); border: 1px solid var(--border-glass);">
+                            <i data-lucide="x" style="width: 16px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i> Rechazar
+                        </button>
+                        <button type="button" class="btn" onclick="resolveRequest('annul')" style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444;">
+                            <i data-lucide="slash" style="width: 16px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i> Anular Completamente
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="resolveRequest('approve')" style="background: var(--success); border: none; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);">
+                            <i data-lucide="check" style="width: 16px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i> Aprobar y Modificar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Direct Annul Modal -->
+    <div id="direct-annul-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 450px; width: 90%; display: flex; flex-direction: column;">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-glass); padding-bottom: 12px;">
+                <h2 style="display: flex; align-items: center; gap: 8px; color: #ef4444; font-size: 1.25rem;"><i data-lucide="slash"></i> Anular Factura Directamente</h2>
+                <button class="close-btn" onclick="document.getElementById('direct-annul-modal').classList.remove('active')" style="background: transparent; border: none; color: white; cursor: pointer;">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="padding-top: 16px;">
+                <form id="direct-annul-form" onsubmit="submitDirectAnnul(event)">
+                    <input type="hidden" id="da-audit-id">
+                    <div style="margin-bottom: 20px;">
+                        <p style="margin-top: 0; color: var(--text-muted); font-size: 0.95rem; line-height: 1.5;">
+                            Se restablecerá completamente el stock de los productos incluidos en esta factura en el inventario. Esta acción no se puede deshacer.
+                        </p>
+                        <label for="da-notes" style="font-weight: 500; font-size: 0.95rem; color: var(--text-main); display: block; margin-bottom: 8px;">Motivo de la Anulación: *</label>
+                        <textarea id="da-notes" class="input-neumorphic" style="width: 100%; height: 100px; box-sizing: border-box; padding: 12px; font-family: inherit; resize: vertical;" placeholder="Escribe la justificación para anular esta factura..." required></textarea>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('direct-annul-modal').classList.remove('active')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" style="background: #ef4444; border: none; color: white;">Anular Factura</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Contenedor de Toasts -->
     <div id="toast-container" class="toast-container"></div>
 

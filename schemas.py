@@ -132,3 +132,17 @@ class FieldOrderItem(BaseModel):
 
 class ReorderFieldsPayload(BaseModel):
     fields: List[FieldOrderItem]
+
+class ModificationItem(BaseModel):
+    record_id: int
+    quantity_change: float
+
+class RequestModificationPayload(BaseModel):
+    notes: str
+    items: List[ModificationItem]
+
+class ResolveModificationPayload(BaseModel):
+    action: str  # "approve", "annul", "reject"
+
+class DirectAnnulPayload(BaseModel):
+    notes: str

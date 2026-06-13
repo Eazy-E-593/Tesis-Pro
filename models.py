@@ -41,6 +41,9 @@ class AppAudit(Base):
     action = Column(String)
     details = Column(JSON, nullable=True)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    status = Column(String, default="active", server_default="active")
+    modification_notes = Column(String, nullable=True)
+    proposed_details = Column(JSON, nullable=True)
 
     business = relationship("Business", back_populates="audits")
 

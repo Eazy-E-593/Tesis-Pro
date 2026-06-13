@@ -1768,3 +1768,208 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Error cargando solicitudes de personal:', e);
     }
 });
+
+// ---- Lógica de Modificación y Anulación de Facturas (Opción 3) ----
+
+// Abre el modal para que el empleado solicite la corrección
+window.openRequestModal = async function(auditId) {
+    try {
+        const res = await fetch(`/api/audits/${auditId}`);
+        if (!res.ok) throw new Error("No se pudo obtener la información de la factura.");
+        
+        const audit = await res.json();
+        document.getElementById('rc-audit-id').value = auditId;
+        document.getElementById('rc-notes').value = '';
+        
+        const tbody = document.getElementById('rc-items-body');
+        tbody.innerHTML = '';
+        
+        const items = audit.details?.items || [];
+        items.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.dataset.recordId = item.record_id;
+            tr.innerHTML = `
+                <td style="font-weight: 500;">${item.name || 'Producto'}</td>
+                <td style="text-align: center; color: var(--text-muted);">${item.quantity_change}</td>
+                <td style="text-align: center;">
+                    <input type="number" class="input-neumorphic rc-qty-input" 
+                           value="${item.quantity_change}" step="any" min="0" 
+                           style="width: 80px; padding: 6px; text-align: center; box-sizing: border-box; background: var(--secondary);">
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+        document.getElementById('request-correction-modal').classList.add('active');
+        lucide.createIcons();
+    } catch (e) {
+        console.error(e);
+        showToast("Error al abrir modal: " + e.message, "error");
+    }
+};
+
+// Envía la solicitud de corrección del cajero
+window.submitCorrectionRequest = async function(e) {
+    e.preventDefault();
+    const auditId = document.getElementById('rc-audit-id').value;
+    const notes = document.getElementById('rc-notes').value.trim();
+    
+    const itemRows = document.querySelectorAll('#rc-items-body tr');
+    const items = [];
+    itemRows.forEach(row => {
+        const recordId = parseInt(row.dataset.recordId);
+        const qtyInput = row.querySelector('.rc-qty-input');
+        const quantityChange = parseFloat(qtyInput.value) || 0.0;
+        items.push({ record_id: recordId, quantity_change: quantityChange });
+    });
+    
+    const btn = document.getElementById('btn-submit-rc');
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Enviando...';
+    lucide.createIcons();
+    
+    try {
+        const res = await fetch(`/api/audits/${auditId}/request-modification`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes, items })
+        });
+        
+        if (res.ok) {
+            showToast("Solicitud de corrección enviada con éxito.", "success");
+            document.getElementById('request-correction-modal').classList.remove('active');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            const data = await res.json();
+            showToast("Error: " + (data.detail || "No se pudo procesar"), "error");
+            btn.disabled = false;
+            btn.innerHTML = 'Enviar Solicitud';
+            lucide.createIcons();
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("Error de conexión", "error");
+        btn.disabled = false;
+        btn.innerHTML = 'Enviar Solicitud';
+        lucide.createIcons();
+    }
+};
+
+// Abre el modal para que el Admin revise la solicitud de cambio
+window.openResolveModal = async function(auditId) {
+    try {
+        const res = await fetch(`/api/audits/${auditId}`);
+        if (!res.ok) throw new Error("No se pudo obtener la información.");
+        
+        const audit = await res.json();
+        document.getElementById('resolve-audit-id').value = auditId;
+        document.getElementById('resolve-operator-code').innerText = audit.employee_code || 'N/A';
+        document.getElementById('resolve-justification').innerText = audit.modification_notes || 'Sin justificación';
+        
+        // Cargar Original
+        const origBody = document.getElementById('resolve-orig-body');
+        origBody.innerHTML = '';
+        const origItems = audit.details?.items || [];
+        origItems.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.name || 'Producto'}</td>
+                <td style="text-align: center;">${item.quantity_change}</td>
+                <td style="text-align: right; font-family: monospace;">$${(item.subtotal || 0).toFixed(2)}</td>
+            `;
+            origBody.appendChild(tr);
+        });
+        document.getElementById('resolve-orig-total').innerText = `$${(audit.details?.total || 0).toFixed(2)}`;
+        
+        // Cargar Propuesto
+        const propBody = document.getElementById('resolve-prop-body');
+        propBody.innerHTML = '';
+        const propItems = audit.proposed_details?.items || [];
+        propItems.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.name || 'Producto'}</td>
+                <td style="text-align: center; font-weight: bold; color: var(--success);">${item.quantity_change}</td>
+                <td style="text-align: right; font-family: monospace;">$${(item.subtotal || 0).toFixed(2)}</td>
+            `;
+            propBody.appendChild(tr);
+        });
+        document.getElementById('resolve-prop-total').innerText = `$${(audit.proposed_details?.total || 0).toFixed(2)}`;
+        
+        document.getElementById('resolve-correction-modal').classList.add('active');
+        lucide.createIcons();
+    } catch (e) {
+        console.error(e);
+        showToast("Error al cargar la solicitud", "error");
+    }
+};
+
+// Resuelve la solicitud (Aprobar, Rechazar, Anular)
+window.resolveRequest = async function(action) {
+    const auditId = document.getElementById('resolve-audit-id').value;
+    
+    let confirmMsg = "¿Estás seguro de rechazar esta solicitud?";
+    if (action === 'approve') confirmMsg = "¿Estás seguro de APROBAR y aplicar los cambios? Esto modificará el stock automáticamente.";
+    if (action === 'annul') confirmMsg = "¿Estás seguro de ANULAR completamente esta factura? El stock original se revertirá al inventario.";
+    
+    const ok = await showConfirmModal(confirmMsg);
+    if (!ok) return;
+    
+    try {
+        const res = await fetch(`/api/audits/${auditId}/resolve-modification`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action })
+        });
+        
+        if (res.ok) {
+            showToast("Solicitud procesada con éxito.", "success");
+            document.getElementById('resolve-correction-modal').classList.remove('active');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            const data = await res.json();
+            showToast("Error: " + (data.detail || "No se pudo procesar"), "error");
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Error de conexión", "error");
+    }
+};
+
+// Abre el modal para anulación directa de factura (Admin)
+window.openDirectAnnulModal = function(auditId) {
+    document.getElementById('da-audit-id').value = auditId;
+    document.getElementById('da-notes').value = '';
+    document.getElementById('direct-annul-modal').classList.add('active');
+    lucide.createIcons();
+};
+
+// Procesa la anulación directa
+window.submitDirectAnnul = async function(e) {
+    e.preventDefault();
+    const auditId = document.getElementById('da-audit-id').value;
+    const notes = document.getElementById('da-notes').value.trim();
+    
+    const ok = await showConfirmModal("¿Estás seguro de anular esta factura directamente? Se revertirá completamente el stock de los productos.");
+    if (!ok) return;
+    
+    try {
+        const res = await fetch(`/api/audits/${auditId}/direct-annul`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes })
+        });
+        
+        if (res.ok) {
+            showToast("Factura anulada con éxito.", "success");
+            document.getElementById('direct-annul-modal').classList.remove('active');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            const data = await res.json();
+            showToast("Error: " + (data.detail || "No se pudo anular"), "error");
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("Error de conexión", "error");
+    }
+};
