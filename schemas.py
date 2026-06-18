@@ -146,3 +146,6 @@ class ResolveModificationPayload(BaseModel):
 
 class DirectAnnulPayload(BaseModel):
     notes: str
+
+class SetupTemplatePayload(BaseModel):
+    template: str

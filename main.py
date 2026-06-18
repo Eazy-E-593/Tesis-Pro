@@ -152,7 +152,16 @@ async def dashboard_page(request: Request, db: Session = Depends(database.get_db
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    return templates.TemplateResponse("dashboard.html", {"request": request, "user": user})
+    
+    setup_completed = False
+    if user.business:
+        setup_completed = user.business.setup_completed or False
+        
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "user": user,
+        "setup_completed": setup_completed
+    })
 
 @app.get("/staff", response_class=HTMLResponse, include_in_schema=False)
 async def staff_page(request: Request, db: Session = Depends(database.get_db)):
@@ -1033,3 +1042,392 @@ def api_rehire_user(user_id: int, request: Request, db: Session = Depends(databa
     success, error_msg = send_status_email(target_user.email, target_user.full_name, "approved")
     
     return {"ok": True, "email_sent": success, "email_error": error_msg if not success else None}
+
+def setup_business_template(db: Session, business_id: int, template: str):
+    tables_to_create = []
+    
+    if template == "restaurant":
+        tables_to_create = [
+            {
+                "name": "Menú",
+                "description": "Catálogo de platillos y precios",
+                "fields": [
+                    {"name": "Nombre", "type": "text"},
+                    {"name": "Descripción", "type": "text"},
+                    {"name": "Precio", "type": "number_decimal"},
+                    {"name": "Categoría", "type": "select", "options": "Entradas, Fuertes, Postres, Bebidas, Otros"}
+                ]
+            },
+            {
+                "name": "Pedidos (Ventas)",
+                "description": "Registro de consumos",
+                "fields": [
+                    {"name": "Mesa", "type": "text"},
+                    {"name": "Cliente", "type": "text"},
+                    {"name": "Items", "type": "text"},
+                    {"name": "Total", "type": "number_decimal"},
+                    {"name": "Estado", "type": "select", "options": "Pendiente, Preparando, Entregado, Pagado"}
+                ]
+            }
+        ]
+    elif template == "store":
+        tables_to_create = [
+            {
+                "name": "Ventas del POS",
+                "description": "Registro de transacciones diarias",
+                "fields": [
+                    {"name": "Cajero", "type": "text"},
+                    {"name": "Cliente", "type": "text"},
+                    {"name": "Met. Pago", "type": "select", "options": "Efectivo, Tarjeta, Transferencia"},
+                    {"name": "Total", "type": "number_decimal"}
+                ]
+            }
+        ]
+    elif template == "gym":
+        tables_to_create = [
+            {
+                "name": "Planes",
+                "description": "Membresías del gimnasio",
+                "fields": [
+                    {"name": "Plan", "type": "text"},
+                    {"name": "Costo", "type": "number_decimal"},
+                    {"name": "Días", "type": "number_int"},
+                    {"name": "Acceso", "type": "select", "options": "Pase Diario, Pase Mensual, Full Access"}
+                ]
+            },
+            {
+                "name": "Suscripciones (Ventas)",
+                "description": "Registro de pagos de planes",
+                "fields": [
+                    {"name": "Socio", "type": "text"},
+                    {"name": "Plan", "type": "text"},
+                    {"name": "Inicio", "type": "date"},
+                    {"name": "Vence", "type": "date"},
+                    {"name": "Monto", "type": "number_decimal"}
+                ]
+            }
+        ]
+    elif template == "liquor":
+        tables_to_create = [
+            {
+                "name": "Ventas del POS",
+                "description": "Transacciones y despachos",
+                "fields": [
+                    {"name": "Vendedor", "type": "text"},
+                    {"name": "Items", "type": "text"},
+                    {"name": "Subtotal", "type": "number_decimal"},
+                    {"name": "Total", "type": "number_decimal"}
+                ]
+            }
+        ]
+        
+    for t_info in tables_to_create:
+        existing = db.query(models.AppTable).filter_by(business_id=business_id, name=t_info["name"]).first()
+        if not existing:
+            new_table = models.AppTable(name=t_info["name"], description=t_info["description"], business_id=business_id)
+            db.add(new_table)
+            db.commit()
+            db.refresh(new_table)
+            
+            for idx, f in enumerate(t_info["fields"]):
+                db_field = models.AppField(
+                    table_id=new_table.id,
+                    name=f["name"],
+                    field_type=f["type"],
+                    options=f.get("options"),
+                    order_index=idx
+                )
+                db.add(db_field)
+            db.commit()
+
+@app.post("/api/business/setup-template", tags=["admin"])
+def api_setup_business_template(payload: schemas.SetupTemplatePayload, request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="No autorizado")
+        
+    business = db.query(models.Business).filter(models.Business.id == user.business_id).first()
+    if not business:
+        raise HTTPException(status_code=404, detail="Negocio no encontrado")
+        
+    setup_business_template(db, business.id, payload.template)
+    
+    business.setup_completed = True
+    db.commit()
+    
+    return {"ok": True}
+
+@app.get("/api/dashboard/stats", tags=["admin"])
+def api_get_dashboard_stats(request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="No autorizado")
+        
+    import datetime
+
+    # UTC a Local (Ecuador UTC-5)
+    tz_offset = datetime.timedelta(hours=5)
+    local_now = datetime.datetime.utcnow() - tz_offset
+
+    # Parsear filtros de fecha opcionales desde los query parameters
+    start_date_str = request.query_params.get("start_date")
+    end_date_str = request.query_params.get("end_date")
+    
+    filter_start = None
+    filter_end = None
+    if start_date_str:
+        try:
+            filter_start = datetime.datetime.strptime(start_date_str.strip(), "%Y-%m-%d")
+        except ValueError:
+            pass
+    if end_date_str:
+        try:
+            filter_end = datetime.datetime.strptime(end_date_str.strip(), "%Y-%m-%d")
+            # Ajustar al final del día local (23:59:59.999999)
+            filter_end = filter_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            pass
+
+    # Filtrar auditorías para KPIs (si hay fechas, limita el rango; si no, calcula acumulado histórico)
+    kpi_query = db.query(models.AppAudit).filter(
+        models.AppAudit.business_id == user.business_id, 
+        models.AppAudit.status != "annulled"
+    )
+    if filter_start:
+        kpi_query = kpi_query.filter(models.AppAudit.timestamp >= (filter_start + tz_offset))
+    if filter_end:
+        kpi_query = kpi_query.filter(models.AppAudit.timestamp <= (filter_end + tz_offset))
+        
+    audits = kpi_query.all()
+    
+    total_sales = 0.0
+    total_purchases = 0.0
+    for a in audits:
+        if a.details:
+            t_type = a.details.get("type")
+            t_val = float(a.details.get("total", 0.0))
+            if t_type == "Venta":
+                total_sales += t_val
+            elif t_type == "Compra":
+                total_purchases += t_val
+                
+    gain_net = total_sales - total_purchases
+    total_transactions = len(audits)
+    
+    low_stock_count = 0
+    inv_table = db.query(models.AppTable).filter(models.AppTable.business_id == user.business_id, models.AppTable.name.ilike('inventario%')).first()
+    if inv_table:
+        for r in inv_table.records:
+            qty_val = r.data.get("Cantidad", 0)
+            try:
+                qty = float(qty_val) if str(qty_val).strip() != "" else 0.0
+            except (ValueError, TypeError):
+                qty = 0.0
+            if qty <= 3:
+                low_stock_count += 1
+                
+    product_ids_str = request.query_params.get("products")
+    product_ids = []
+    if product_ids_str:
+        product_ids = [int(pid.strip()) for pid in product_ids_str.split(",") if pid.strip().isdigit()]
+        
+    # Determinar el rango de fechas para el eje X del gráfico
+    if filter_start:
+        local_start = filter_start.date()
+    else:
+        local_start = (local_now - datetime.timedelta(days=6)).date()
+        
+    if filter_end:
+        local_end = filter_end.date()
+    else:
+        local_end = local_now.date()
+        
+    # Limitar el rango máximo del gráfico a 62 días para protección de rendimiento
+    if (local_end - local_start).days > 62:
+        local_start = local_end - datetime.timedelta(days=62)
+        
+    if local_start > local_end:
+        local_start = local_end
+        
+    # Generar la lista de días (eje X)
+    delta = local_end - local_start
+    days = [local_start + datetime.timedelta(days=i) for i in range(delta.days + 1)]
+    chart_labels = [d.strftime("%d/%m") for d in days]
+    
+    # Obtener auditorías de ventas en el rango UTC correspondiente
+    start_date_utc = datetime.datetime.combine(local_start, datetime.time.min) + tz_offset
+    end_date_utc = datetime.datetime.combine(local_end, datetime.time.max) + tz_offset
+    
+    sales_audits = db.query(models.AppAudit).filter(
+        models.AppAudit.business_id == user.business_id,
+        models.AppAudit.status != "annulled",
+        models.AppAudit.timestamp >= start_date_utc,
+        models.AppAudit.timestamp <= end_date_utc
+    ).order_by(models.AppAudit.timestamp.asc()).all()
+    
+    recent_sales = [a for a in sales_audits if a.details and a.details.get("type") == "Venta"]
+    
+    chart_datasets = []
+    
+    if product_ids:
+        colors = ["#10b981", "#8b5cf6", "#3b82f6", "#f59e0b", "#ec4899", "#14b8a6"]
+        for idx, pid in enumerate(product_ids):
+            product_name = f"Prod #{pid}"
+            
+            p_record = db.query(models.AppRecord).filter_by(id=pid).first()
+            if p_record:
+                product_name = p_record.data.get("Nombre") or p_record.data.get("COD") or product_name
+                
+            # Agrupar ventas diarias de este producto
+            daily_prod_sales = {d: 0.0 for d in days}
+            for s in recent_sales:
+                if s.timestamp:
+                    s_local_date = (s.timestamp - tz_offset).date()
+                    if s_local_date in daily_prod_sales:
+                        qty_sold = 0.0
+                        items = s.details.get("items", [])
+                        for item in items:
+                            if item.get("record_id") == pid:
+                                qty_sold += float(item.get("quantity_change", 0.0))
+                        daily_prod_sales[s_local_date] += qty_sold
+                        
+            product_data = [round(daily_prod_sales[d], 2) for d in days]
+            color = colors[idx % len(colors)]
+            chart_datasets.append({
+                "label": f"{product_name} (Cant)",
+                "data": product_data,
+                "borderColor": color,
+                "backgroundColor": "transparent",
+                "tension": 0.4,
+                "fill": False
+            })
+    else:
+        # Agrupar ventas totales diarias
+        daily_sales = {d: 0.0 for d in days}
+        for s in recent_sales:
+            if s.timestamp:
+                s_local_date = (s.timestamp - tz_offset).date()
+                if s_local_date in daily_sales:
+                    daily_sales[s_local_date] += float(s.details.get("total", 0.0))
+                    
+        chart_data = [round(daily_sales[d], 2) for d in days]
+        
+        chart_datasets.append({
+            "label": "Ventas Totales ($)",
+            "data": chart_data,
+            "borderColor": "#10b981",
+            "backgroundColor": "rgba(16, 185, 129, 0.1)",
+            "tension": 0.4,
+            "fill": True
+        })
+        
+    # Calcular productos más y menos vendidos
+    products_map = {}
+    if inv_table:
+        for r in inv_table.records:
+            name = r.data.get("Nombre") or r.data.get("COD") or f"Producto #{r.id}"
+            sku = r.data.get("COD") or ""
+            price_val = r.data.get("Precio por Unidad") or r.data.get("Precio") or r.data.get("P. Venta") or 0.0
+            try:
+                price = float(price_val)
+            except (ValueError, TypeError):
+                price = 0.0
+            
+            stock_val = r.data.get("Cantidad") or r.data.get("Stock") or 0
+            try:
+                stock = int(float(stock_val))
+            except (ValueError, TypeError):
+                stock = 0
+
+            products_map[r.id] = {
+                "id": r.id,
+                "name": name,
+                "sku": sku,
+                "price": price,
+                "stock": stock,
+                "sold_qty": 0.0,
+                "revenue": 0.0
+            }
+
+    for s in recent_sales:
+        items = s.details.get("items", []) if s.details else []
+        for item in items:
+            pid = item.get("record_id")
+            if pid is None:
+                continue
+            try:
+                qty = float(item.get("quantity_change", 0.0))
+            except (ValueError, TypeError):
+                qty = 0.0
+            try:
+                subtotal = float(item.get("subtotal", 0.0))
+            except (ValueError, TypeError):
+                subtotal = 0.0
+                
+            if pid in products_map:
+                products_map[pid]["sold_qty"] += qty
+                products_map[pid]["revenue"] += subtotal
+            else:
+                products_map[pid] = {
+                    "id": pid,
+                    "name": item.get("name") or f"Producto #{pid}",
+                    "sku": "",
+                    "price": float(item.get("price", 0.0)) if item.get("price") is not None else 0.0,
+                    "stock": 0,
+                    "sold_qty": qty,
+                    "revenue": subtotal
+                }
+
+    all_prods = list(products_map.values())
+    top_sold_sorted = sorted(all_prods, key=lambda x: x["sold_qty"], reverse=True)
+    top_sold = top_sold_sorted[:3]
+
+    remaining_prods = [p for p in all_prods if p not in top_sold]
+    if len(remaining_prods) >= 3:
+        least_sold_sorted = sorted(remaining_prods, key=lambda x: x["sold_qty"])
+    else:
+        least_sold_sorted = sorted(all_prods, key=lambda x: x["sold_qty"])
+    
+    least_sold = least_sold_sorted[:3]
+
+    for p in top_sold:
+        p["revenue"] = round(p["revenue"], 2)
+    for p in least_sold:
+        p["revenue"] = round(p["revenue"], 2)
+
+    return {
+        "stats": {
+            "total_sales": round(total_sales, 2),
+            "total_purchases": round(total_purchases, 2),
+            "gain_net": round(gain_net, 2),
+            "total_transactions": total_transactions,
+            "low_stock_count": low_stock_count
+        },
+        "chart": {
+            "labels": chart_labels,
+            "datasets": chart_datasets
+        },
+        "top_sold": top_sold,
+        "least_sold": least_sold
+    }
+
+@app.get("/api/dashboard/products", tags=["admin"])
+def api_get_dashboard_products(request: Request, db: Session = Depends(database.get_db)):
+    user = get_current_user(request, db)
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="No autorizado")
+        
+    inv_table = db.query(models.AppTable).filter(models.AppTable.business_id == user.business_id, models.AppTable.name.ilike('inventario%')).first()
+    if not inv_table:
+        return []
+        
+    results = []
+    for r in inv_table.records:
+        name = r.data.get("Nombre") or "Sin nombre"
+        sku = r.data.get("COD") or ""
+        results.append({
+            "id": r.id,
+            "name": name,
+            "sku": sku
+        })
+    return results

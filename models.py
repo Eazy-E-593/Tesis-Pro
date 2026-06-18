@@ -9,6 +9,7 @@ class Business(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     code = Column(String, unique=True, index=True)
+    setup_completed = Column(Boolean, default=False, server_default="false")
 
     users = relationship("User", back_populates="business", cascade="all, delete")
     tables = relationship("AppTable", back_populates="business", cascade="all, delete")
