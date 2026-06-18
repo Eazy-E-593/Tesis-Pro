@@ -733,6 +733,9 @@ function openManageColumnsModal() {
 }
 
 async function deleteColumnFromModal(fieldId) {
+    if (!document.body.classList.contains('edit-mode-active')) {
+        return showToast("Acción denegada: Activa el Modo Edición para eliminar columnas.", "warning");
+    }
     let ok = await showConfirmModal("¿Seguro que deseas eliminar esta columna? Los datos de las filas no se perderán pero dejarán de mostrarse.");
     if (!ok) return;
     try {
@@ -800,7 +803,7 @@ async function saveAllColumns() {
             }
         }
 
-        // â Ãxito: animación corta â cerrar modal
+        // ✅ Éxito: animación corta → cerrar modal
         btn.style.background = 'var(--success)';
         btn.innerHTML = '<i data-lucide="check"></i> ¡Guardado!';
         lucide.createIcons();
@@ -832,6 +835,9 @@ async function saveAllColumns() {
 
 
 async function deleteColumn(fieldId) {
+    if (!document.body.classList.contains('edit-mode-active')) {
+        return showToast("Acción denegada: Activa el Modo Edición para eliminar columnas.", "warning");
+    }
     let ok = await showConfirmModal("¿Seguro que deseas eliminar esta columna? Los datos existentes en las filas no se perderán pero dejarán de mostrarse.");
     if (!ok) return;
 
