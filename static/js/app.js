@@ -1,0 +1,2001 @@
+let currentTableId = null;
+let currentFields = [];
+let currentTableRecords = [];
+
+window.appIsDirty = false;
+window.appLeaveMsg = '¿Seguro que quieres salir? Los cambios no se guardarán.';
+
+async function loadTable(tableId) {
+    if (window.appIsDirty) {
+        let ok = await showConfirmModal(window.appLeaveMsg);
+        if (!ok) {
+            return; // Abort loadTable
+        }
+        window.appIsDirty = false;
+    }
+
+    // Si no estamos en la vista de tablas, redirigir
+    if (!window.location.pathname.includes('tables-view')) {
+        window.location.href = `/tables-view#table-${tableId}`;
+        return;
+    }
+
+    // Cerrar panel de movimientos si está abierto
+    const panel = document.getElementById('movement-panel');
+    if (panel && panel.classList.contains('open')) {
+        closeMovementPanel();
+    }
+
+    // Update UI active state safely
+    document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+    if (typeof event !== 'undefined' && event && event.currentTarget) {
+        if (event.currentTarget.classList) {
+            event.currentTarget.classList.add('active');
+        }
+    }
+
+    // Show table container, hide welcome
+    document.getElementById('welcome-screen').style.display = 'none';
+    document.getElementById('table-container').style.display = 'flex';
+
+    currentTableId = tableId;
+
+    try {
+        const response = await fetch(`/tables/${tableId}`);
+        const data = await response.json();
+
+        document.getElementById('current-table-name').innerText = data.name;
+
+        // Mostrar / Ocultar botón de Movimientos
+        let btnMovimientos = document.getElementById('btn-movimientos');
+        if (btnMovimientos) {
+            if (data.name.toLowerCase().includes('inventario')) {
+                btnMovimientos.style.display = 'inline-flex';
+            } else {
+                btnMovimientos.style.display = 'none';
+            }
+        }
+
+        let btnCreate = document.getElementById('btn-create-row');
+        if (btnCreate) {
+            let role = typeof currentUserRole !== 'undefined' ? currentUserRole : 'empleado';
+            if (['admin', 'manager'].includes(role)) {
+                let singularName = data.name.endsWith('s') ? data.name.slice(0, -1) : data.name;
+                btnCreate.innerHTML = `<i data-lucide="plus"></i> Añadir ${singularName}`;
+                btnCreate.style.display = 'inline-flex';
+            } else {
+                btnCreate.style.display = 'none';
+            }
+        }
+
+        currentFields = data.fields;
+        currentTableRecords = data.records;
+        renderTable(data.fields, data.records);
+        lucide.createIcons();
+    } catch (e) {
+        console.error("Error loading table", e);
+    }
+}
+
+function renderTable(fields, records) {
+    const headRow = document.getElementById('table-head-row');
+    const tbody = document.getElementById('table-body');
+
+    // Render Heads
+    headRow.innerHTML = '';
+    fields.forEach(field => {
+        let th = document.createElement('th');
+        let role = typeof currentUserRole !== 'undefined' ? currentUserRole : 'empleado';
+        let actionHtml = '';
+        if (role === 'admin') {
+            actionHtml = `<button class="delete-row-btn admin-edit-element" onclick="deleteColumn(${field.id})" style="padding: 0; outline: none; margin-left: 8px;">
+                <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+            </button>`;
+        }
+
+        th.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span>${field.name} <span style="font-size: 0.7em; color: var(--text-muted); text-transform: uppercase;">(${field.field_type})</span></span>
+                ${actionHtml}
+            </div>
+        `;
+        headRow.appendChild(th);
+    });
+    // Add extra column for actions
+    let actionTh = document.createElement('th');
+    actionTh.style.width = '50px';
+    headRow.appendChild(actionTh);
+
+    // Render Body
+    tbody.innerHTML = '';
+    records.forEach(record => {
+        let dataObj = record.data || {};
+        const AUTO_FIELDS = ['COD', 'ID'];
+        // Determinar si el registro está vacío (nueva fila)
+        let isNewRow = false;
+        if (dataObj) {
+            isNewRow = !fields.some(f => {
+                if (AUTO_FIELDS.includes(f.name.toUpperCase())) return false;
+                let val = dataObj[f.name];
+                return val !== "" && val !== null && val !== undefined;
+            });
+        }
+
+        let tr = document.createElement('tr');
+        tr.dataset.recordId = record.id;
+        tr.dataset.isNewRow = isNewRow;
+
+        fields.forEach(field => {
+            let val = dataObj[field.name];
+            // En caso de que venga como null del backend
+            if (val === null || val === undefined) val = "";
+
+            let td = document.createElement('td');
+            
+            let isSku = field.name.toUpperCase() === 'COD';
+            let isAutoId = field.name.toUpperCase() === 'ID';
+
+            let inputType = (isSku || isAutoId) ? 'text'
+                : (field.field_type.startsWith('number') || field.field_type === 'number') ? 'number'
+                    : field.field_type === 'date' ? 'date'
+                        : 'text';
+
+            let inputContainer = document.createElement('div');
+            inputContainer.style.position = 'relative';
+            inputContainer.style.display = 'flex';
+            inputContainer.style.alignItems = 'center';
+            inputContainer.style.width = '100%';
+            inputContainer.style.transition = 'opacity 0.3s';
+
+            let input;
+
+            if (field.options && field.field_type === 'select') {
+                input = document.createElement('select');
+                input.className = 'cell-input';
+                
+                let defaultOpt = document.createElement('option');
+                defaultOpt.value = '';
+                defaultOpt.textContent = 'Seleccione...';
+                input.appendChild(defaultOpt);
+
+                let opts = field.options.split(',').map(o => o.trim());
+                opts.forEach(o => {
+                    let opt = document.createElement('option');
+                    opt.value = o;
+                    opt.textContent = o;
+                    if (val === o) opt.selected = true;
+                    input.appendChild(opt);
+                });
+                
+                if (isSku || isAutoId) {
+                    input.readOnly = true;
+                    input.title = "Generado automáticamente";
+                    input.classList.add('locked-input');
+                    // Select no tiene readOnly, se simula con pointer-events
+                    input.style.pointerEvents = 'none';
+                } else {
+                    if (!isNewRow) {
+                        input.disabled = true; // Para select se usa disabled
+                        input.classList.add('locked-input');
+                    }
+                }
+            } else {
+                input = document.createElement('input');
+                input.type = inputType;
+                input.className = 'cell-input';
+
+                if (isSku || isAutoId) {
+                    input.readOnly = true;
+                    input.title = "Generado automáticamente";
+                    input.classList.add('locked-input');
+                } else {
+                    if (!isNewRow) {
+                        input.readOnly = true;
+                        input.classList.add('locked-input');
+                    }
+                }
+
+                if (field.name.toUpperCase() === 'UNIDAD DE VENTA' || field.name.toUpperCase() === 'UNIDAD') {
+                    input.setAttribute('list', 'unidades-list');
+                    input.placeholder = "Buscar unidad...";
+                } else if (field.options) {
+                    let datalistId = 'list-' + field.id + '-' + record.id;
+                    input.setAttribute('list', datalistId);
+                    input.placeholder = "Opciones disponibles...";
+
+                    let datalist = document.createElement('datalist');
+                    datalist.id = datalistId;
+                    let opts = field.options.split(',').map(o => o.trim());
+                    opts.forEach(o => {
+                        let opt = document.createElement('option');
+                        opt.value = o;
+                        datalist.appendChild(opt);
+                    });
+                    td.appendChild(datalist);
+                }
+
+                // Empty state UX
+                if (!val && !isSku && !isAutoId && input.tagName !== 'SELECT') {
+                    input.classList.add('empty-cell');
+                    let placeholder = document.createElement('span');
+                    placeholder.className = 'empty-placeholder';
+                    placeholder.innerHTML = '⚠️ Vacío';
+                    inputContainer.appendChild(placeholder);
+
+                    input.addEventListener('focus', () => {
+                        placeholder.style.display = 'none';
+                        input.classList.remove('empty-cell');
+                    });
+                    input.addEventListener('blur', () => {
+                        if (!input.value) {
+                            placeholder.style.display = 'flex';
+                            input.classList.add('empty-cell');
+                        }
+                    });
+                }
+
+                input.value = val;
+            }
+
+            input.dataset.fieldId = field.id;
+            input.dataset.fieldName = field.name;
+
+            // Escuchar input para lógica progresiva y guardado rápido
+            if (!input.readOnly) {
+                input.addEventListener('input', () => updateRowProgressive(tr));
+                
+                // Enter para guardar
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        if (tr.dataset.isNewRow === 'true') {
+                            saveRow(record.id);
+                        } else {
+                            quickSaveRow(record.id);
+                        }
+                    }
+                });
+            }
+
+            inputContainer.appendChild(input);
+            td.appendChild(inputContainer);
+            tr.appendChild(td);
+        });
+
+        // Acción
+        let tdAction = document.createElement('td');
+        tdAction.style.whiteSpace = 'nowrap';
+        
+        // Solo mostrar controles a admin o manager
+        let role = typeof currentUserRole !== 'undefined' ? currentUserRole : 'empleado';
+        if (['admin', 'manager'].includes(role)) {
+            let actionBtnHtml = `
+                <button class="btn btn-primary action-btn save-btn admin-edit-element" onclick="saveRow(${record.id})" style="padding: 6px 12px; margin-right: 8px; font-size: 0.8rem;" title="Guardar Fila">
+                    <i data-lucide="save" style="width: 14px;"></i> Guardar
+                </button>
+            `;
+            
+            if (!isNewRow) {
+                actionBtnHtml = `
+                    <button class="btn action-btn edit-btn admin-edit-element" onclick="enableEditRow(${record.id}, this)" style="padding: 6px 12px; background: rgba(59, 130, 246, 0.1); color: var(--primary); margin-right: 8px; font-size: 0.8rem;" title="Editar Fila">
+                        <i data-lucide="edit-2" style="width: 14px;"></i> Editar
+                    </button>
+                    <button class="btn action-btn delete-btn admin-edit-element" onclick="deleteRow(${record.id})" style="padding: 6px 12px; background: rgba(239, 68, 68, 0.1); color: var(--danger); font-size: 0.8rem;" title="Eliminar Fila">
+                        <i data-lucide="trash-2" style="width: 14px;"></i>
+                    </button>
+                `;
+            } else {
+                actionBtnHtml += `
+                    <button class="btn action-btn delete-btn admin-edit-element" onclick="deleteRow(${record.id})" style="padding: 6px 12px; background: rgba(239, 68, 68, 0.1); color: var(--danger); font-size: 0.8rem;" title="Cancelar">
+                        <i data-lucide="x" style="width: 14px;"></i>
+                    </button>
+                `;
+            }
+            tdAction.innerHTML = actionBtnHtml;
+        }
+        
+        tr.appendChild(tdAction);
+        tbody.appendChild(tr);
+
+        // Si es nueva fila, enfocar el primer input progresivamente
+        if (isNewRow) {
+            setTimeout(() => updateRowProgressive(tr), 50);
+        }
+    });
+
+    lucide.createIcons();
+}
+
+// Lógica de llenado progresivo (UX gamificada)
+function updateRowProgressive(tr) {
+    if (tr.dataset.isNewRow !== 'true') return;
+
+    let allInputs = tr.querySelectorAll('.cell-input');
+    let previousFilled = true;
+    
+    allInputs.forEach(input => {
+        if (input.title === "Generado automáticamente" || input.readOnly) return; // Ignorar campos auto-generados o bloqueados
+
+        let container = input.parentElement;
+        let placeholder = container.querySelector('.empty-placeholder');
+
+        if (!previousFilled) {
+            input.disabled = true;
+            container.style.opacity = '0.5';
+            input.style.cursor = 'not-allowed';
+            if (placeholder) placeholder.style.display = 'none';
+        } else {
+            input.disabled = false;
+            container.style.opacity = '1';
+            input.style.cursor = 'text';
+            if (input.value.trim() === '') {
+                if (placeholder && document.activeElement !== input) {
+                    placeholder.style.display = 'flex';
+                }
+                previousFilled = false;
+            } else {
+                if (placeholder) placeholder.style.display = 'none';
+            }
+        }
+    });
+}
+
+window.enableEditRow = function (recordId, btn) {
+    let tr = document.querySelector(`tr[data-record-id="${recordId}"]`);
+    if (!tr) return;
+
+    let inputs = tr.querySelectorAll('.cell-input:not([title="Generado automáticamente"])');
+    inputs.forEach(inp => {
+        inp.readOnly = false;
+        inp.disabled = false; // Desbloquea también los elementos select
+        inp.classList.remove('locked-input');
+    });
+
+    if (inputs.length > 0) inputs[0].focus();
+
+    btn.outerHTML = `
+        <button class="btn btn-primary action-btn save-btn admin-edit-element" onclick="saveRow(${recordId})" style="padding: 6px 12px; margin-right: 8px; font-size: 0.8rem;" title="Guardar Fila">
+            <i data-lucide="save" style="width: 14px;"></i> Guardar
+        </button>
+    `;
+    lucide.createIcons();
+}
+
+// ---- Record Actions ----
+
+async function addRow() {
+    if (!currentTableId) return;
+
+    // Bloquear si ya hay una fila nueva sin guardar
+    const pendingSaveBtn = document.querySelector('#table-body .save-btn');
+    if (pendingSaveBtn) {
+        showToast("Completa y guarda la fila actual antes de crear una nueva.", "warning");
+        const firstInput = pendingSaveBtn.closest('tr')?.querySelector('.cell-input:not([title="Generado automáticamente"])');
+        if (firstInput) firstInput.focus();
+        return;
+    }
+
+    // Create an empty payload string based on current fields
+    let initialData = {};
+    currentFields.forEach(f => {
+        initialData[f.name] = "";
+    });
+
+    try {
+        await fetch(`/records/${currentTableId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: initialData })
+        });
+        // Reload silently
+        loadTableSilently();
+    } catch (e) {
+        console.error("Failed to add row", e);
+    }
+}
+
+async function deleteRow(recordId) {
+    let ok = await showConfirmModal("¿Seguro que deseas eliminar esta fila?");
+    if (!ok) return;
+    try {
+        await fetch(`/records/${recordId}`, { method: 'DELETE' });
+        loadTableSilently();
+    } catch (e) {
+        console.error("Failed to delete row", e);
+    }
+}
+
+// Función para guardar toda la fila bajo demanda manual
+async function saveRow(recordId) {
+    let tr = document.querySelector(`tr[data-record-id="${recordId}"]`);
+    if (!tr) return;
+
+    console.log(`Guardando fila: ${recordId}`);
+
+    let updatedData = {};
+    let inputs = tr.querySelectorAll('.cell-input');
+    let isValid = true;
+
+    currentFields.forEach((f, idx) => {
+        let type = inputs[idx].type;
+        let val = inputs[idx].value;
+
+        // Validación Anti-Vacíos (excluir campos auto-generados)
+        const AUTO_FIELDS_SAVE = ['COD', 'ID'];
+        if (String(val).trim() === '' && !AUTO_FIELDS_SAVE.includes(f.name.toUpperCase())) {
+            showToast(`El campo "${f.name}" es obligatorio.`, "warning");
+            isValid = false;
+        }
+
+        if (type === 'number' && val !== '') val = Number(val);
+        updatedData[f.name] = val;
+    });
+
+    if (!isValid) {
+        loadTableSilently(); // Revert visual state
+        return;
+    }
+
+    let saveBtn = tr.querySelector('.save-btn');
+    if (saveBtn) {
+        saveBtn.innerHTML = '<i data-lucide="loader" class="spin"></i> Cargando...';
+        saveBtn.style.opacity = '0.7';
+    }
+
+    try {
+        await fetch(`/records/${recordId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: updatedData })
+        });
+
+        // Efecto visual de guardado exitoso
+        inputs.forEach(input => {
+            input.style.backgroundColor = 'rgba(16, 185, 129, 0.15)'; // Verde sutil
+            setTimeout(() => input.style.backgroundColor = 'transparent', 800);
+        });
+
+        if (saveBtn) {
+            saveBtn.style.backgroundColor = 'var(--success)';
+            saveBtn.innerHTML = '<i data-lucide="check" style="width: 14px;"></i> Listo';
+            saveBtn.style.opacity = '1';
+
+            // Esperar un momento para que el usuario vea el "Listo" y luego refrescar la fila
+            setTimeout(() => {
+                loadTableSilently();
+            }, 600);
+        } else {
+            loadTableSilently();
+        }
+    } catch (e) {
+        console.error("Failed to save row", e);
+        loadTableSilently();
+    }
+}
+
+
+// ---- Column Actions (No Code builder) ----
+
+function showAddColumnModal() {
+    const posSelect = document.getElementById('new-col-position');
+    if (posSelect) {
+        posSelect.innerHTML = '<option value="end">Al final</option><option value="start">Al principio</option>';
+        currentFields.forEach(f => {
+            let option = document.createElement('option');
+            option.value = `after_${f.id}`;
+            option.textContent = `Después de "${f.name}"`;
+            posSelect.appendChild(option);
+        });
+    }
+    document.getElementById('add-column-modal').classList.add('active');
+}
+
+let customConfirmResolver = null;
+
+function showConfirmModal(message) {
+    return new Promise(resolve => {
+        const modal = document.getElementById('custom-confirm-modal');
+        const msgEl = document.getElementById('custom-confirm-message');
+        const btnAccept = document.getElementById('custom-confirm-accept-btn');
+
+        if (modal && msgEl) {
+            msgEl.textContent = message;
+            modal.classList.add('active');
+            // Remove previous focus and set focus to accept button
+            setTimeout(() => { if (btnAccept) btnAccept.focus(); }, 100);
+
+            customConfirmResolver = resolve;
+        } else {
+            // Fallback just in case
+            resolve(confirm(message));
+        }
+    });
+}
+
+function resolveCustomConfirm(result) {
+    const modal = document.getElementById('custom-confirm-modal');
+    if (modal) modal.classList.remove('active');
+
+    if (customConfirmResolver) {
+        customConfirmResolver(result);
+        customConfirmResolver = null;
+    }
+}
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    let icon = 'info';
+    if (type === 'success') icon = 'check-circle';
+    if (type === 'error') icon = 'alert-circle';
+    if (type === 'warning') icon = 'alert-triangle';
+
+    toast.innerHTML = `
+        <div class="toast-icon">
+            <i data-lucide="${icon}" style="width: 20px; height: 20px;"></i>
+        </div>
+        <div class="toast-content">${message}</div>
+    `;
+
+    container.appendChild(toast);
+    lucide.createIcons();
+
+    // Auto-remove
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 400);
+    }, 4000);
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+    const nameEl = document.getElementById('new-col-name');
+    const optEl = document.getElementById('new-col-options');
+    const posEl = document.getElementById('new-col-position');
+    if (nameEl) nameEl.value = '';
+    if (optEl) optEl.value = '';
+    if (posEl) posEl.value = 'end';
+}
+
+async function submitNewColumn() {
+    if (!currentTableId) return;
+
+    let colName = document.getElementById('new-col-name').value.trim();
+    let colType = document.getElementById('new-col-type').value;
+    let colOptions = document.getElementById('new-col-options')?.value.trim() || null;
+
+    let posVal = document.getElementById('new-col-position')?.value || 'end';
+
+    if (!colName) {
+        showToast("El nombre de la columna no puede estar vacío", "warning");
+        return;
+    }
+
+    let payload = { name: colName, field_type: colType, options: colOptions || null };
+
+    if (posVal === 'start') {
+        payload.order_index = 0;
+    } else if (posVal.startsWith('after_')) {
+        let afterId = parseInt(posVal.replace('after_', ''));
+        let idx = currentFields.findIndex(f => f.id === afterId);
+        if (idx !== -1) {
+            let targetField = currentFields[idx];
+            let baseIndex = targetField.order_index !== null ? targetField.order_index : idx;
+            payload.order_index = baseIndex + 1;
+        }
+    }
+
+    if (currentTableRecords.length > 0) {
+        let ok = await showConfirmModal(`Nota: Las ${currentTableRecords.length} filas existentes tendrán este nuevo campo ("${colName}") vacío. ¿Deseas continuar?`);
+        if (!ok) {
+            return;
+        }
+    }
+
+    try {
+        await fetch(`/tables/${currentTableId}/fields`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        closeModal('add-column-modal');
+        loadTableSilently();
+    } catch (e) {
+        console.error("Failed to add column", e);
+    }
+}
+
+// Oculta/Muestra las opciones sugeridas según el tipo elegido
+window.toggleSuggestedOptions = function (selectEl) {
+    const parentContainer = selectEl.closest('div[style]').parentElement;
+    const optionsContainer = parentContainer.querySelector('.options-container');
+    if (optionsContainer) {
+        const input = optionsContainer.querySelector('input');
+        if (selectEl.value === 'select') {
+            input.readOnly = false;
+            input.style.opacity = '1';
+            input.style.pointerEvents = 'auto';
+            input.placeholder = 'Escribe las opciones (Ej: A, B, C)';
+        } else {
+            input.readOnly = true;
+            input.style.opacity = '0.7';
+            input.style.pointerEvents = 'none';
+            input.placeholder = 'Opciones sugeridas...';
+        }
+    }
+};
+
+// ââ Estado local del reordenamiento (solo se aplica al guardar) ââââââââââââââ
+let _pendingFieldOrder = null; // null = no hay orden pendiente
+
+function openManageColumnsModal() {
+    if (!currentTableId) return showToast("Selecciona una tabla primero.", "info");
+
+    _pendingFieldOrder = null; // reset al abrir
+
+    const list = document.getElementById('manage-columns-list');
+    list.innerHTML = '';
+
+    // Resetear botón por si quedó en estado anterior
+    const saveBtn = document.getElementById('btn-save-all-cols');
+    saveBtn.style.background = '';
+    saveBtn.innerHTML = '<i data-lucide="save"></i> Guardar';
+    saveBtn.disabled = false;
+
+    let dragSrc = null;
+
+    currentFields.forEach((field) => {
+        let isAuto = ['COD', 'ID'].includes(field.name.toUpperCase());
+        const card = document.createElement('div');
+        card.style.cssText = 'display:flex; gap:10px; align-items:center; background:var(--secondary); padding:12px; border-radius:10px; flex-wrap:wrap; cursor:default; transition: border-top 0.1s;';
+        card.dataset.fieldId = field.id;
+        card.dataset.isAuto = isAuto;
+        card.draggable = !isAuto;
+
+        let dragHandleHtml = isAuto
+            ? `<div style="color:var(--text-muted); padding:0 4px; display:flex; align-items:center; opacity:0.5;" title="Campo automático fijo"><i data-lucide="lock" style="width:18px;"></i></div>`
+            : `<div style="cursor:grab; color:var(--text-muted); padding:0 4px; display:flex; align-items:center;" title="Arrastra para reordenar"><i data-lucide="grip-vertical" style="width:18px;"></i></div>`;
+
+        card.innerHTML = `
+            ${dragHandleHtml}
+            <div style="flex:1; min-width:120px;">
+                <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">Nombre</label>
+                <input type="text" value="${field.name}" class="input-neumorphic col-edit-name"
+                       data-field-id="${field.id}" style="width:100%; padding:8px;">
+            </div>
+            <div style="width:130px;">
+                <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">Tipo</label>
+                <select class="input-neumorphic col-edit-type" data-field-id="${field.id}" style="width:100%; padding:8px;" onchange="window.toggleSuggestedOptions(this)">
+                    <option value="text"   ${field.field_type === 'text' ? 'selected' : ''}>Texto</option>
+                    <option value="number_int" ${field.field_type === 'number_int' ? 'selected' : ''}>Número Entero</option>
+                    <option value="number_decimal" ${['number_decimal', 'number'].includes(field.field_type) ? 'selected' : ''}>Número Decimal</option>
+                    <option value="date"   ${field.field_type === 'date' ? 'selected' : ''}>Fecha</option>
+                    <option value="select" ${field.field_type === 'select' ? 'selected' : ''}>Selección</option>
+                </select>
+            </div>
+            <div class="options-container" style="flex:1; min-width:140px;">
+                <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">Opciones / Sugerencias</label>
+                <input type="text" value="${field.options || ''}" class="input-neumorphic col-edit-options"
+                       data-field-id="${field.id}" placeholder="${field.field_type === 'select' ? 'Escribe las opciones (Ej: A, B, C)' : 'Opciones sugeridas...'}" 
+                       style="width:100%; padding:8px; ${field.field_type !== 'select' ? 'opacity:0.7; pointer-events:none;' : ''}" ${field.field_type !== 'select' ? 'readonly' : ''}>
+            </div>
+            <div style="display:flex; align-items:center; padding-top:18px;">
+                ${!isAuto ? `<button onclick="deleteColumnFromModal(${field.id})" class="btn" style="padding:6px 10px; font-size:0.8rem; background:transparent; color:var(--danger); border:1px solid var(--danger);" title="Eliminar columna">
+                    <i data-lucide="trash-2" style="width:13px;"></i>
+                </button>` : ''}
+            </div>
+        `;
+
+        // Drag & Drop (solo reordena en el DOM, no llama al backend aún)
+        if (!isAuto) {
+            card.addEventListener('dragstart', (e) => {
+                dragSrc = card;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(field.id));
+                setTimeout(() => card.style.opacity = '0.4', 0);
+            });
+
+            card.addEventListener('dragend', () => {
+                card.style.opacity = '1';
+                list.querySelectorAll('[data-field-id]').forEach(c => c.style.borderTop = '');
+            });
+        }
+
+        card.addEventListener('dragover', (e) => {
+            if (card.dataset.isAuto === 'true') return; // Prevent dropping on auto fields
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Auto-scroll logic
+            const scrollContainer = list.parentElement; // .modal-body
+            const rect = scrollContainer.getBoundingClientRect();
+            const y = e.clientY - rect.top;
+            if (y < 50) scrollContainer.scrollTop -= 15;
+            else if (y > rect.height - 50) scrollContainer.scrollTop += 15;
+
+            list.querySelectorAll('[data-field-id]').forEach(c => c.style.borderTop = '');
+            if (card !== dragSrc) card.style.borderTop = '6px solid var(--primary)';
+        });
+
+        card.addEventListener('drop', (e) => {
+            if (card.dataset.isAuto === 'true') return;
+            e.preventDefault();
+            e.stopPropagation();
+            list.querySelectorAll('[data-field-id]').forEach(c => c.style.borderTop = '');
+
+            if (dragSrc && dragSrc !== card) {
+                const cards = [...list.children];
+                const srcIdx = cards.indexOf(dragSrc);
+                const tgtIdx = cards.indexOf(card);
+                if (srcIdx < tgtIdx) {
+                    list.insertBefore(dragSrc, card.nextSibling);
+                } else {
+                    list.insertBefore(dragSrc, card);
+                }
+                // Marcar orden pendiente (se aplica solo al guardar)
+                _pendingFieldOrder = [...list.children].map((c, i) => ({
+                    id: parseInt(c.dataset.fieldId),
+                    order_index: i
+                }));
+            }
+            dragSrc = null;
+        });
+
+        list.appendChild(card);
+    });
+
+    lucide.createIcons();
+    document.getElementById('manage-columns-modal').classList.add('active');
+}
+
+async function deleteColumnFromModal(fieldId) {
+    if (!document.body.classList.contains('edit-mode-active')) {
+        return showToast("Acción denegada: Activa el Modo Edición para eliminar columnas.", "warning");
+    }
+    let ok = await showConfirmModal("¿Seguro que deseas eliminar esta columna? Los datos de las filas no se perderán pero dejarán de mostrarse.");
+    if (!ok) return;
+    try {
+        await fetch(`/fields/${fieldId}`, { method: 'DELETE' });
+        document.getElementById('manage-columns-modal').classList.remove('active');
+        _pendingFieldOrder = null;
+        loadTableSilently();
+    } catch (e) {
+        console.error("Failed to delete column", e);
+    }
+}
+
+async function saveAllColumns() {
+    const btn = document.getElementById('btn-save-all-cols');
+    const cards = [...document.querySelectorAll('#manage-columns-list > [data-field-id]')];
+
+    if (cards.length === 0) return;
+
+    // Validar nombres
+    for (const card of cards) {
+        const nameInput = card.querySelector('.col-edit-name');
+        if (nameInput && !nameInput.value.trim()) {
+            nameInput.style.borderColor = 'var(--danger)';
+            nameInput.focus();
+            showToast("Hay columnas sin nombre. Completa todos los campos antes de guardar.", "warning");
+            return;
+        }
+        if (nameInput) nameInput.style.borderColor = '';
+    }
+
+    btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Guardando...';
+    btn.disabled = true;
+    lucide.createIcons();
+
+    try {
+        // Guardar cada campo secuencialmente con verificación de respuesta
+        for (const card of cards) {
+            const fieldId = parseInt(card.dataset.fieldId);
+            const name = card.querySelector(`.col-edit-name[data-field-id="${fieldId}"]`).value.trim();
+            const type = card.querySelector(`.col-edit-type[data-field-id="${fieldId}"]`).value;
+            const options = card.querySelector(`.col-edit-options[data-field-id="${fieldId}"]`).value.trim();
+
+            const res = await fetch(`/fields/${fieldId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, field_type: type, options: options || null })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `Error al guardar campo #${fieldId} (${res.status})`);
+            }
+        }
+
+        // Guardar reordenamiento pendiente si existe
+        if (_pendingFieldOrder) {
+            const res = await fetch(`/tables/${currentTableId}/reorder-fields`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fields: _pendingFieldOrder })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `Error al guardar el orden (${res.status})`);
+            }
+        }
+
+        // ✅ Éxito: animación corta → cerrar modal
+        btn.style.background = 'var(--success)';
+        btn.innerHTML = '<i data-lucide="check"></i> ¡Guardado!';
+        lucide.createIcons();
+
+        setTimeout(() => {
+            document.getElementById('manage-columns-modal').classList.remove('active');
+            btn.style.background = '';
+            btn.innerHTML = '<i data-lucide="save"></i> Guardar';
+            btn.disabled = false;
+            _pendingFieldOrder = null;
+            lucide.createIcons();
+            loadTableSilently();
+        }, 1500);
+
+    } catch (e) {
+        console.error('saveAllColumns error:', e);
+        showToast('No se pudieron guardar los cambios: ' + e.message, "error");
+        btn.style.background = 'var(--danger)';
+        btn.innerHTML = '<i data-lucide="x"></i> Error';
+        btn.disabled = false;
+        lucide.createIcons();
+        setTimeout(() => {
+            btn.style.background = '';
+            btn.innerHTML = '<i data-lucide="save"></i> Guardar';
+            lucide.createIcons();
+        }, 2000);
+    }
+}
+
+
+async function deleteColumn(fieldId) {
+    if (!document.body.classList.contains('edit-mode-active')) {
+        return showToast("Acción denegada: Activa el Modo Edición para eliminar columnas.", "warning");
+    }
+    let ok = await showConfirmModal("¿Seguro que deseas eliminar esta columna? Los datos existentes en las filas no se perderán pero dejarán de mostrarse.");
+    if (!ok) return;
+
+    try {
+        await fetch(`/fields/${fieldId}`, { method: 'DELETE' });
+        loadTableSilently();
+    } catch (e) {
+        console.error("Failed to delete column", e);
+    }
+}
+
+async function deleteCurrentTable() {
+    if (!currentTableId) return;
+    const tableName = document.getElementById('current-table-name').innerText;
+    if (tableName.toLowerCase() === 'inventario') {
+        let ok = await showConfirmModal(`â ï¸ ADVERTENCIA CRÃTICA: "Inventario" es la tabla base. ¿Estás absolutamente seguro de eliminarla?`);
+        if (!ok) return;
+    } else {
+        let ok = await showConfirmModal(`¿Seguro que deseas eliminar permanentemente la tabla "${tableName}" y TODOS sus datos?`);
+        if (!ok) return;
+    }
+
+    try {
+        const res = await fetch(`/tables/${currentTableId}`, { method: 'DELETE' });
+        if (res.ok) {
+            showToast("Tabla eliminada con éxito.", "success");
+            window.location.href = "/dashboard";
+        } else {
+            const data = await res.json();
+            showToast("Error: " + data.detail, "error");
+        }
+    } catch (e) {
+        console.error("Falló la eliminación de la tabla", e);
+    }
+}
+
+// Helper to refresh without resetting active menu
+async function loadTableSilently() {
+    try {
+        const response = await fetch(`/tables/${currentTableId}`);
+        const data = await response.json();
+        currentFields = data.fields;
+        currentTableRecords = data.records;
+        renderTable(data.fields, data.records);
+    } catch (e) {
+        console.error("Error refreshing table", e);
+    }
+}
+
+// ---- Sidebar Logic ----
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const mobileNavbar = document.querySelector('.mobile-navbar');
+    if (!sidebar) return;
+
+    const isMobile = mobileNavbar && window.getComputedStyle(mobileNavbar).display !== 'none';
+
+    if (isMobile) {
+        sidebar.classList.toggle('mobile-open');
+        if (overlay) {
+            overlay.classList.toggle('active');
+        }
+        if (sidebar.classList.contains('mobile-open')) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+    } else {
+        if (sidebar.dataset.hoverExpanded === 'true') {
+            sidebar.dataset.hoverExpanded = 'false';
+            localStorage.setItem('sidebar_collapsed', 'false');
+            sidebar.classList.remove('collapsed');
+        } else {
+            sidebar.classList.toggle('collapsed');
+            localStorage.setItem('sidebar_collapsed', sidebar.classList.contains('collapsed'));
+            if (!sidebar.classList.contains('collapsed')) {
+                sidebar.dataset.hoverExpanded = 'false';
+            }
+        }
+    }
+}
+
+function closeSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    if (sidebar) sidebar.classList.remove('mobile-open');
+    if (overlay) overlay.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// Expandir sidebar al pasar el mouse si está contraída
+function initSidebarExpansion() {
+    const sidebar = document.querySelector('.sidebar');
+    const mobileNavbar = document.querySelector('.mobile-navbar');
+    if (!sidebar) return;
+
+    sidebar.addEventListener('mouseenter', (e) => {
+        const isMobile = mobileNavbar && window.getComputedStyle(mobileNavbar).display !== 'none';
+        if (isMobile) return; // Ignorar en móvil
+
+        // Solo expandir si está colapsada
+        if (sidebar.classList.contains('collapsed')) {
+            sidebar.classList.remove('collapsed');
+            sidebar.dataset.hoverExpanded = 'true';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    });
+
+    sidebar.addEventListener('mouseleave', (e) => {
+        const isMobile = mobileNavbar && window.getComputedStyle(mobileNavbar).display !== 'none';
+        if (isMobile) return;
+
+        if (sidebar.dataset.hoverExpanded === 'true') {
+            if (localStorage.getItem('sidebar_collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+            }
+            sidebar.dataset.hoverExpanded = 'false';
+        }
+    });
+}
+
+
+// Auto-collapse on link click & restore state
+document.addEventListener('DOMContentLoaded', () => {
+    const mobileNavbar = document.querySelector('.mobile-navbar');
+    const isMobile = mobileNavbar && window.getComputedStyle(mobileNavbar).display !== 'none';
+
+    if (!isMobile && localStorage.getItem('sidebar_collapsed') === 'true') {
+        document.querySelector('.sidebar')?.classList.add('collapsed');
+    }
+
+    initSidebarExpansion();
+
+    const navLinks = document.querySelectorAll('.sidebar .nav-link');
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            const currentIsMobile = mobileNavbar && window.getComputedStyle(mobileNavbar).display !== 'none';
+            if (currentIsMobile) {
+                closeSidebar();
+            } else {
+                const sidebar = document.querySelector('.sidebar');
+                // If they click on a table link, let's collapse it to give space
+                if (sidebar && !sidebar.classList.contains('collapsed')) {
+                    sidebar.classList.add('collapsed');
+                    localStorage.setItem('sidebar_collapsed', 'true');
+                    sidebar.dataset.hoverExpanded = 'false';
+                }
+            }
+        });
+    });
+});
+
+// ---- Theme Logic ----
+function toggleTheme() {
+    let isDark;
+    if (document.body.classList.contains('dark-theme')) {
+        document.body.classList.remove('dark-theme');
+        localStorage.setItem('theme', 'light');
+        isDark = false;
+    } else {
+        document.body.classList.add('dark-theme');
+        localStorage.setItem('theme', 'dark');
+        isDark = true;
+    }
+
+    let toggleSettings = document.getElementById('theme-toggle-settings');
+    if (toggleSettings) toggleSettings.checked = isDark;
+}
+
+// ---- Zoom / Customization Logic ----
+let currentZoomDelta = parseInt(localStorage.getItem('zoomDelta')) || 0;
+applyZoom();
+
+function changeZoom(delta) {
+    currentZoomDelta += delta;
+    if (currentZoomDelta < -3) currentZoomDelta = -3;
+    if (currentZoomDelta > 5) currentZoomDelta = 5; // Limite max 150%
+    localStorage.setItem('zoomDelta', currentZoomDelta);
+    applyZoom();
+}
+
+function applyZoom() {
+    let zoomLevel = 1 + (currentZoomDelta * 0.1);
+    document.body.style.zoom = zoomLevel;
+
+    let display = document.getElementById('zoom-level-display');
+    if (display) {
+        display.innerText = Math.round(zoomLevel * 100) + '%';
+    }
+}
+
+// ---- Movement / POS Logic ----
+let cartItems = {};
+
+async function loadSuggestions() {
+    let typeEl = document.querySelector('input[name="mov-type"]:checked');
+    let type = typeEl ? typeEl.value : "Venta";
+    let endpoint = type === "Compra" ? '/api/suppliers/suggest' : '/api/clients/suggest';
+
+    // 1. Cargar Clientes/Proveedores
+    try {
+        const res = await fetch(endpoint);
+        if (res.ok) {
+            const data = await res.json();
+            const dlName = document.getElementById('clients-name-sug');
+            const dlCedula = document.getElementById('clients-cedula-sug');
+            if (dlName) dlName.innerHTML = '';
+            if (dlCedula) dlCedula.innerHTML = '';
+
+            window.clientsData = [];
+
+            data.forEach(item => {
+                let name = typeof item === 'string' ? item : item.name;
+                let cedula = typeof item === 'string' ? '' : item.cedula;
+                window.clientsData.push({ name, cedula });
+
+                if (dlName && name) {
+                    let opt = document.createElement('option');
+                    opt.value = name;
+                    dlName.appendChild(opt);
+                }
+                if (dlCedula && cedula) {
+                    let opt = document.createElement('option');
+                    opt.value = cedula;
+                    dlCedula.appendChild(opt);
+                }
+            });
+        }
+    } catch (e) { }
+
+    // 2. Cargar Inventario en el datalist (si estamos en la tabla correcta)
+    const invDl = document.getElementById('inventory-sug');
+    if (invDl && currentTableRecords) {
+        invDl.innerHTML = '';
+        currentTableRecords.forEach(r => {
+            const name = r.data.Nombre || 'Sin nombre';
+            const cod = r.data.COD || '';
+            const stock = r.data.Cantidad || 0;
+            let opt = document.createElement('option');
+            opt.value = `${name} (${cod})`;
+            opt.dataset.id = r.id;
+            invDl.appendChild(opt);
+        });
+    }
+}
+
+function openMovementPanel() {
+    const tableName = document.getElementById('current-table-name').innerText.toLowerCase();
+    if (!tableName.includes('inventario')) {
+        return showToast("El panel de movimientos está diseñado para usarlo en el Inventario.", "info");
+    }
+    document.getElementById('movement-panel').classList.add('open');
+    document.getElementById('inventory-search').value = '';
+    const resultsDiv = document.getElementById('search-results');
+    if (resultsDiv) resultsDiv.innerHTML = '';
+    loadSuggestions();
+    renderCart();
+}
+
+function closeMovementPanel() {
+    document.getElementById('movement-panel').classList.remove('open');
+}
+
+function searchInventory() {
+    const q = document.getElementById('inventory-search').value.toLowerCase();
+    const resDiv = document.getElementById('search-results');
+    const cartSection = document.getElementById('cart-section');
+    resDiv.innerHTML = '';
+
+    const results = currentTableRecords.filter(r => {
+        if (!q) return true;
+        let name = String(r.data.Nombre || '').toLowerCase();
+        let sku = String(r.data.COD || '').toLowerCase();
+        return name.includes(q) || sku.includes(q);
+    }).slice(0, 15);
+
+    if (results.length > 0) {
+        resDiv.style.display = 'block';
+        resDiv.style.background = 'var(--bg-card)'; // Fondo sólido
+        resDiv.style.borderRadius = '12px';
+        resDiv.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+
+        // Ocultar sección del carrito para que no se vea amontonado
+        if (cartSection) cartSection.style.display = 'none';
+
+        results.forEach(r => {
+            let div = document.createElement('div');
+            div.className = 'search-item';
+            div.style.padding = '12px';
+            div.style.background = 'transparent';
+            div.style.borderBottom = '1px solid var(--border-glass)';
+            div.style.cursor = 'pointer';
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.alignItems = 'center';
+            div.style.transition = 'background 0.2s';
+
+            div.onmouseover = () => div.style.background = 'rgba(255,255,255,0.05)';
+            div.onmouseout = () => div.style.background = 'transparent';
+
+            div.innerHTML = `
+                <div>
+                    <strong style="color:var(--text-main); display:block;">${r.data.Nombre}</strong>
+                    <small style="color:var(--text-muted)">${r.data.COD || ''}</small>
+                </div>
+                <div style="text-align:right;">
+                    <span style="font-weight:bold; color:var(--primary); display:block;">${r.data.Cantidad || 0} disp.</span>
+                    <small style="color:var(--success)">$${parseFloat(r.data['Precio por Unidad'] || r.data['Precio'] || 0).toFixed(2)}</small>
+                </div>
+            `;
+            div.onclick = () => {
+                addToCart(r);
+                resDiv.style.display = 'none';
+                if (cartSection) cartSection.style.display = 'block';
+                document.getElementById('inventory-search').value = '';
+            };
+            resDiv.appendChild(div);
+        });
+    } else {
+        resDiv.style.display = 'none';
+        if (cartSection) cartSection.style.display = 'block';
+    }
+}
+
+// Cerrar resultados al hacer clic fuera y restaurar carrito
+document.addEventListener('click', (e) => {
+    const searchInput = document.getElementById('inventory-search');
+    const resDiv = document.getElementById('search-results');
+    const cartSection = document.getElementById('cart-section');
+    if (searchInput && resDiv && !searchInput.contains(e.target) && !resDiv.contains(e.target)) {
+        resDiv.style.display = 'none';
+        if (cartSection) cartSection.style.display = 'block';
+    }
+});
+
+function addToCart(record) {
+    let typeEl = document.querySelector('input[name="mov-type"]:checked');
+    let type = typeEl ? typeEl.value : "Venta";
+
+    if (type === "Venta") {
+        let currentQty = cartItems[record.id] ? cartItems[record.id].qty : 0;
+        let available = parseInt(record.data.Cantidad) || 0;
+
+        if (currentQty + 1 > available) {
+            return showToast("Stock agotado. No puedes facturar más unidades de este producto.", "error");
+        }
+    }
+
+    if (!cartItems[record.id]) {
+        cartItems[record.id] = { record, qty: 1 };
+    } else {
+        cartItems[record.id].qty += 1;
+    }
+    document.getElementById('inventory-search').value = '';
+    searchInventory();
+    renderCart();
+}
+
+function updateCartQty(id, change) {
+    let typeEl = document.querySelector('input[name="mov-type"]:checked');
+    let type = typeEl ? typeEl.value : "Venta";
+
+    if (cartItems[id]) {
+        let currentQty = cartItems[id].qty;
+        let available = parseInt(cartItems[id].record.data.Cantidad) || 0;
+
+        if (type === "Venta" && change > 0) {
+            if (currentQty + change > available) {
+                return showToast("Stock agotado. No puedes facturar más unidades de este producto.", "error");
+            }
+        }
+
+        cartItems[id].qty += change;
+        if (cartItems[id].qty <= 0) {
+            delete cartItems[id]; // remover si llega a 0
+        }
+    }
+    renderCart();
+}
+
+function toggleMovementType() {
+    let typeEl = document.querySelector('input[name="mov-type"]:checked');
+    let type = typeEl ? typeEl.value : "Venta";
+
+    let clientLabel = document.getElementById('lbl-mov-client');
+    let financials = document.getElementById('cart-financials');
+    let btnProcess = document.getElementById('btn-process-mov');
+
+    if (type === "Venta") {
+        clientLabel.innerHTML = `<i data-lucide="user" style="width: 12px; margin-right: 4px;"></i> Destinatario / Cliente (Opcional)`;
+        financials.style.display = 'block';
+        btnProcess.innerText = "Procesar Cobro";
+        btnProcess.className = "btn btn-primary btn-block";
+    } else {
+        clientLabel.innerHTML = `<i data-lucide="truck" style="width: 12px; margin-right: 4px;"></i> Origen / Proveedor (Opcional)`;
+        financials.style.display = 'none'; // Al comprar mercadería, el costo difiere del precio de venta, no se asume
+        btnProcess.innerText = "Registrar Ingreso de Stock";
+        btnProcess.className = "btn btn-warning btn-block";
+    }
+    lucide.createIcons();
+    loadSuggestions();
+    renderCart(); // Re-render to hide/show price items
+}
+
+function renderCart() {
+    const c = document.getElementById('cart-items');
+    c.innerHTML = '';
+
+    let total = 0;
+    let typeEl = document.querySelector('input[name="mov-type"]:checked');
+    let type = typeEl ? typeEl.value : "Venta";
+
+    Object.values(cartItems).forEach(item => {
+        let div = document.createElement('div');
+        div.className = 'cart-item';
+
+        // Soporte para "Precio" o "Precio por Unidad"
+        let precioVal = item.record.data['Precio por Unidad'] || item.record.data['Precio'] || item.record.data['precio'] || 0;
+        let precio = parseFloat(precioVal) || 0;
+        let subtotalFila = precio * item.qty;
+        total += subtotalFila;
+
+        let pricingHtml = '';
+        if (type === "Venta") {
+            pricingHtml = `<small style="color:var(--success)">$${precio.toFixed(2)} c/u (Sub: $${subtotalFila.toFixed(2)})</small>`;
+        }
+
+        div.innerHTML = `
+            <div style="flex: 1;">
+                <strong>${item.record.data.Nombre}</strong><br>
+                <small>${item.record.data.COD} | Disp: ${item.record.data.Cantidad}</small><br>
+                ${pricingHtml}
+            </div>
+            <div class="qty-controls">
+                <button class="qty-btn" onclick="updateCartQty(${item.record.id}, -1)">-</button>
+                <span style="min-width: 24px; text-align:center; font-weight: bold;">${item.qty}</span>
+                <button class="qty-btn" onclick="updateCartQty(${item.record.id}, 1)">+</button>
+            </div>
+        `;
+        c.appendChild(div);
+    });
+
+    // Desglose de Facturación
+    let subtotalSinIva = total / 1.15;
+    let iva = total - subtotalSinIva;
+
+    document.getElementById('cart-subtotal').innerText = `$${subtotalSinIva.toFixed(2)}`;
+    document.getElementById('cart-iva').innerText = `$${iva.toFixed(2)}`;
+    document.getElementById('cart-total').innerText = `$${total.toFixed(2)}`;
+}
+
+async function processMovement() {
+    let typeEl = document.querySelector('input[name="mov-type"]:checked');
+    let type = typeEl ? typeEl.value : "Venta";
+    let isCF = document.getElementById('mov-consumidor-final')?.checked;
+    let clientName = isCF ? 'Consumidor Final' : document.getElementById('mov-client-name').value.trim();
+    let clientCedula = isCF ? '9999999999' : document.getElementById('mov-client-cedula').value.trim();
+
+    if (!isCF && document.getElementById('cedula-error') && document.getElementById('cedula-error').style.display === 'block') {
+        return showToast("La cédula/RUC tiene una longitud incorrecta.", "warning");
+    }
+
+    let payload = Object.values(cartItems).map(i => {
+        let precioVal = i.record.data['Precio por Unidad'] || i.record.data['Precio'] || i.record.data['precio'] || 0;
+        let precio = parseFloat(precioVal) || 0;
+        return {
+            record_id: i.record.id,
+            quantity_change: i.qty,
+            name: i.record.data.Nombre || i.record.data.COD || 'Item',
+            price: precio,
+            subtotal: precio * i.qty
+        };
+    });
+    if (payload.length === 0) return showToast("Por favor, agrega al menos un producto al carrito.", "warning");
+
+    let totalText = document.getElementById('cart-total').textContent.replace('$', '');
+    let subtotalText = document.getElementById('cart-subtotal').textContent.replace('$', '');
+    let ivaText = document.getElementById('cart-iva').textContent.replace('$', '');
+
+    try {
+        const res = await fetch('/inventory/movement', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: type,
+                client_name: clientName,
+                client_cedula: clientCedula,
+                subtotal: parseFloat(subtotalText),
+                iva: parseFloat(ivaText),
+                total: parseFloat(totalText),
+                items: payload
+            })
+        });
+        if (res.ok) {
+            const data = await res.json();
+
+            if (type === "Venta") {
+                Object.values(cartItems).forEach(i => {
+                    let available = parseInt(i.record.data.Cantidad) || 0;
+                    let remaining = available - i.qty;
+                    if (remaining <= 3 && remaining > 0) {
+                        setTimeout(() => showToast(`¡Atención! El producto ${i.record.data.Nombre || 'Item'} está por agotarse (quedan ${remaining}).`, "warning"), 500);
+                    } else if (remaining <= 0) {
+                        setTimeout(() => showToast(`El producto ${i.record.data.Nombre || 'Item'} se ha agotado por completo.`, "error"), 500);
+                    }
+                });
+            }
+
+            cartItems = {};
+            document.getElementById('mov-client-name').value = '';
+            document.getElementById('mov-client-cedula').value = '';
+            if (document.getElementById('mov-consumidor-final')) {
+                document.getElementById('mov-consumidor-final').checked = false;
+                toggleConsumidorFinal();
+            }
+            closeMovementPanel();
+            loadTableSilently();
+
+            // Abrir Ticket
+            if (data.audit_id) {
+                openTicketModal(data.audit_id);
+            }
+
+            showToast(`¡${type} procesada con éxito! El movimiento quedó registrado en Auditoría.`, "success");
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+// ---- Table Search Filter ----
+
+function toggleConsumidorFinal() {
+    let isCF = document.getElementById('mov-consumidor-final').checked;
+    let nameInput = document.getElementById('mov-client-name');
+    let cedInput = document.getElementById('mov-client-cedula');
+    let radios = document.getElementById('search-type-radios');
+
+    if (isCF) {
+        nameInput.value = 'Consumidor Final';
+        nameInput.disabled = true;
+        cedInput.value = '9999999999';
+        cedInput.disabled = true;
+        if (radios) {
+            radios.style.opacity = '0.5';
+            radios.style.pointerEvents = 'none';
+        }
+        document.getElementById('cedula-error').style.display = 'none';
+    } else {
+        nameInput.value = '';
+        nameInput.disabled = false;
+        cedInput.value = '';
+        cedInput.disabled = false;
+        if (radios) {
+            radios.style.opacity = '1';
+            radios.style.pointerEvents = 'auto';
+        }
+    }
+}
+
+function toggleClientSearchType() {
+    let searchType = document.querySelector('input[name="client-search-type"]:checked').value;
+    if (searchType === 'nombre') {
+        document.getElementById('div-client-nombre').style.display = 'block';
+        document.getElementById('div-client-cedula').style.display = 'none';
+    } else {
+        document.getElementById('div-client-nombre').style.display = 'none';
+        document.getElementById('div-client-cedula').style.display = 'block';
+    }
+}
+
+function validateCedulaInput() {
+    let input = document.getElementById('mov-client-cedula');
+    let typeEl = document.querySelector('input[name="cedula-type"]:checked');
+    let type = typeEl ? typeEl.value : 'cedula';
+    let errorEl = document.getElementById('cedula-error');
+
+    input.value = input.value.replace(/\D/g, '');
+
+    let expectedLength = type === 'cedula' ? 10 : 13;
+    input.maxLength = expectedLength;
+
+    if (input.value.length > expectedLength) {
+        input.value = input.value.slice(0, expectedLength);
+    }
+
+    if (input.value.length > 0 && input.value.length !== expectedLength) {
+        errorEl.textContent = `Debe tener exactamente ${expectedLength} dígitos.`;
+        errorEl.style.display = 'block';
+    } else {
+        errorEl.style.display = 'none';
+    }
+}
+
+function autoFillClient(source) {
+    if (!window.clientsData) return;
+    let nameInput = document.getElementById('mov-client-name');
+    let cedInput = document.getElementById('mov-client-cedula');
+
+    if (source === 'name') {
+        let match = window.clientsData.find(c => c.name === nameInput.value);
+        if (match && match.cedula) {
+            cedInput.value = match.cedula;
+        }
+    } else if (source === 'cedula') {
+        let match = window.clientsData.find(c => c.cedula === cedInput.value);
+        if (match && match.name) {
+            nameInput.value = match.name;
+        }
+    }
+}
+
+function filterTables() {
+    const q = document.getElementById('table-search').value.toLowerCase();
+    const items = document.querySelectorAll('.table-item');
+    items.forEach(item => {
+        const textElement = item.querySelector('.table-name-text');
+        if (!textElement) return;
+        const text = textElement.innerText.toLowerCase();
+        if (text.includes(q)) {
+            item.style.display = '';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// ---- Audits / Historial ----
+async function openAuditsModal() {
+    const overlay = document.getElementById('audits-modal-overlay');
+    if (overlay) {
+        overlay.classList.add('active');
+    } else {
+        const modal = document.getElementById('audits-modal');
+        if (modal) modal.style.display = 'flex';
+    }
+    const tbody = document.getElementById('audits-table-body');
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Cargando historial...</td></tr>';
+
+    try {
+        const res = await fetch('/api/audits');
+        const audits = await res.json();
+        tbody.innerHTML = '';
+
+        if (audits.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay registros aún.</td></tr>';
+            return;
+        }
+
+        audits.forEach(a => {
+            let tr = document.createElement('tr');
+
+            // Si la acción incluye Venta o Compra, resaltamos visualmente el recuadro
+            let actionHtml = a.action;
+            if (a.action.includes('Venta |')) {
+                actionHtml = `<span style="color: var(--success); font-weight: bold;">${a.action}</span>`;
+            } else if (a.action.includes('Compra |')) {
+                actionHtml = `<span style="color: var(--warning); font-weight: bold;">${a.action}</span>`;
+            }
+
+            // Simple fecha formateada legible
+            let dateStr = "N/A";
+            if (a.timestamp !== "N/A") {
+                let d = new Date(a.timestamp);
+                dateStr = d.toLocaleString();
+            }
+
+            let printBtn = a.details ? `<button onclick="openTicketModal('${a.id}')" title="Imprimir" style="background: transparent; border: none; cursor: pointer; color: var(--primary);"><i data-lucide="printer" style="width:16px;"></i></button>` : '';
+            tr.innerHTML = `
+                <td>#${a.id}</td>
+                <td><span class="badge" style="background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">${a.employee_code || '?'}</span></td>
+                <td>${actionHtml}</td>
+                <td style="font-size: 0.85em; color: var(--text-muted);">${dateStr}</td>
+                <td style="text-align:center;">${printBtn}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--danger);">Error al cargar historial</td></tr>';
+    }
+}
+
+function openTicketModal(id) {
+    document.getElementById('ticket-iframe').src = '/ticket/' + id;
+    document.getElementById('ticket-modal').classList.add('active');
+}
+
+// ---- Authentication ----
+
+async function checkEmail() {
+    const email = document.getElementById('email-input').value;
+    if (!email) return showToast("Por favor ingresa un correo", "warning");
+    if (!email.includes('@')) return showToast("El correo debe llevar '@'", "warning");
+
+    try {
+        const res = await fetch('/auth/check-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+
+        if (data.exists) {
+            document.getElementById('step-email').style.display = 'none';
+            document.getElementById('step-password').style.display = 'block';
+            document.getElementById('footer-default').style.display = 'block';
+        } else {
+            showToast("El correo no existe o no está registrado.", "error");
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function backToEmail() {
+    document.getElementById('step-password').style.display = 'none';
+    document.getElementById('step-email').style.display = 'block';
+    document.getElementById('password-input').value = '';
+}
+
+async function login() {
+    const email = document.getElementById('email-input').value;
+    const password = document.getElementById('password-input').value;
+    if (!password) return showToast("Ingresa tu contraseña", "warning");
+
+    try {
+        const res = await fetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        if (res.ok) {
+            window.location.href = "/dashboard";
+        } else {
+            const err = await res.json();
+            showToast("Error: " + (err.detail || "Credenciales inválidas"), "error");
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function checkRegisterEmail() {
+    const name = document.getElementById('reg-name').value;
+    const email = document.getElementById('reg-email').value;
+    const cedula = document.getElementById('reg-cedula').value;
+    const typeEl = document.querySelector('input[name="reg-cedula-type"]:checked');
+    const type = typeEl ? typeEl.value : 'cedula';
+    const expectedLength = type === 'cedula' ? 10 : 13;
+
+    if (!name || !email || !cedula) return showToast("Por favor ingresa nombre, correo y cédula", "warning");
+    if (!email.includes('@')) return showToast("El correo debe llevar '@'", "warning");
+    if (cedula.length !== expectedLength) return showToast(`La cédula/RUC debe tener exactamente ${expectedLength} dígitos numéricos`, "warning");
+
+    try {
+        const res = await fetch('/auth/check-registration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, cedula })
+        });
+        const data = await res.json();
+
+        if (data.email_exists) {
+            showToast("El correo ya está registrado.", "warning");
+        } else if (data.cedula_exists) {
+            showToast("La cédula/RUC ya está registrada.", "warning");
+        } else {
+            document.getElementById('reg-step-1').style.display = 'none';
+            document.getElementById('reg-step-2').style.display = 'block';
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function showConfirmPass() {
+    const pass = document.getElementById('reg-pass').value;
+    if (!pass) return showToast("Ingresa una contraseña", "warning");
+
+    document.getElementById('reg-step-2').style.display = 'none';
+    document.getElementById('reg-step-3').style.display = 'block';
+}
+
+function backToRegStep(step) {
+    document.getElementById('reg-step-1').style.display = 'none';
+    document.getElementById('reg-step-2').style.display = 'none';
+    document.getElementById('reg-step-3').style.display = 'none';
+    document.getElementById(`reg-step-${step}`).style.display = 'block';
+}
+
+async function registerUser() {
+    const name = document.getElementById('reg-name').value;
+    const email = document.getElementById('reg-email').value;
+    const password = document.getElementById('reg-pass').value;
+    const confirm = document.getElementById('reg-confirm').value;
+    const cedula = document.getElementById('reg-cedula').value;
+    const businessCode = document.getElementById('reg-business-code').value;
+    const businessName = window.registerFlow === 'owner' ? document.getElementById('reg-business-name').value : null;
+
+    const typeEl = document.querySelector('input[name="reg-cedula-type"]:checked');
+    const type = typeEl ? typeEl.value : 'cedula';
+    const expectedLength = type === 'cedula' ? 10 : 13;
+
+    if (!name || !email || !password || !cedula) return showToast("Llena todos los campos", "warning");
+    if (password !== confirm) return showToast("Las contraseñas no coinciden", "error");
+    if (cedula.length !== expectedLength) return showToast(`La cédula/RUC debe tener exactamente ${expectedLength} dígitos numéricos`, "error");
+    if (!businessCode) return showToast("El código de negocio es obligatorio", "warning");
+    if (window.registerFlow === 'owner' && !businessName) return showToast("El nombre del negocio es obligatorio", "warning");
+
+    const payload = {
+        full_name: name,
+        email: email,
+        password: password,
+        cedula: cedula,
+        business_code: businessCode
+    };
+
+    if (businessName) {
+        payload.business_name = businessName;
+    }
+
+    try {
+        const res = await fetch('/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'pending') {
+                showToast("Tu cuenta ha sido creada y está pendiente de aprobación por el Administrador.", "success");
+                setTimeout(() => { window.location.href = "/login"; }, 3000);
+            } else {
+                showToast("Negocio creado con éxito.", "success");
+                setTimeout(() => { window.location.href = "/dashboard"; }, 1500);
+            }
+        } else {
+            const err = await res.json();
+            showToast("Error: " + (err.detail || "No se pudo crear la cuenta"), "error");
+            backToRegStep(1);
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function logout() {
+    try {
+        await fetch('/auth/logout', { method: 'POST' });
+        window.location.href = "/login";
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function updateRegisterCedulaLength() {
+    let input = document.getElementById('reg-cedula');
+    if (!input) return;
+    let typeEl = document.querySelector('input[name="reg-cedula-type"]:checked');
+    let type = typeEl ? typeEl.value : 'cedula';
+    let errorEl = document.getElementById('reg-cedula-error');
+
+    input.value = input.value.replace(/\D/g, '');
+
+    let expectedLength = type === 'cedula' ? 10 : 13;
+    input.maxLength = expectedLength;
+
+    if (input.value.length > expectedLength) {
+        input.value = input.value.slice(0, expectedLength);
+    }
+
+    if (errorEl) {
+        if (input.value.length > 0 && input.value.length !== expectedLength) {
+            errorEl.textContent = `Debe tener exactamente ${expectedLength} dígitos.`;
+            errorEl.style.display = 'block';
+        } else {
+            errorEl.style.display = 'none';
+        }
+    }
+}
+
+// Al cargar la página, si hay un hash #table-X, cargar esa tabla automáticamente
+// (pasa cuando se redirige desde otra página al hacer clic en una tabla del sidebar)
+function checkHashAndLoadTable() {
+    if (window.location.pathname.includes('tables-view')) {
+        const hash = window.location.hash; // ej: "#table-3"
+        const match = hash.match(/#table-(\d+)/); // más flexible sin ^ y $
+        if (match) {
+            const tableId = match[1];
+            // Limpiar el hash para que no quede en la URL
+            history.replaceState(null, '', window.location.pathname);
+            // Cargar la tabla
+            loadTable(tableId);
+            // Marcar activo en el sidebar
+            setTimeout(() => {
+                document.querySelectorAll(`.nav-link[data-table-id="${tableId}"]`).forEach(l => {
+                    l.classList.add('active');
+                });
+            }, 100);
+        }
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkHashAndLoadTable);
+} else {
+    checkHashAndLoadTable();
+}
+
+
+// --- Lógica global de alertas de personal (Badge y Toast) ---
+document.addEventListener('DOMContentLoaded', async () => {
+    const badge = document.getElementById('staff-badge');
+    if (!badge) return;
+
+    try {
+        const res = await fetch('/api/users/pending');
+        if (res.ok) {
+            const users = await res.json();
+            if (users.length > 0) {
+                badge.innerText = users.length;
+                badge.style.display = 'inline-flex';
+
+                if (window.location.pathname === '/dashboard') {
+                    showToast(`Tienes  solicitud(es) de personal pendiente(s)`, 'info');
+                }
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.error('Error cargando solicitudes de personal:', e);
+    }
+});
+
+// ---- Lógica de Modificación y Anulación de Facturas (Opción 3) ----
+
+// Abre el modal para que el empleado solicite la corrección
+window.openRequestModal = async function (auditId) {
+    try {
+        const res = await fetch(`/api/audits/${auditId}`);
+        if (!res.ok) throw new Error("No se pudo obtener la información de la factura.");
+
+        const audit = await res.json();
+        document.getElementById('rc-audit-id').value = auditId;
+        document.getElementById('rc-notes').value = '';
+
+        const tbody = document.getElementById('rc-items-body');
+        tbody.innerHTML = '';
+
+        const items = audit.details?.items || [];
+        items.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.dataset.recordId = item.record_id;
+            tr.innerHTML = `
+                <td style="font-weight: 500;">${item.name || 'Producto'}</td>
+                <td style="text-align: center; color: var(--text-muted);">${item.quantity_change}</td>
+                <td style="text-align: center;">
+                    <input type="number" class="input-neumorphic rc-qty-input" 
+                           value="${item.quantity_change}" step="any" min="0" 
+                           style="width: 80px; padding: 6px; text-align: center; box-sizing: border-box; background: var(--secondary);">
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('request-correction-modal').classList.add('active');
+        lucide.createIcons();
+    } catch (e) {
+        console.error(e);
+        showToast("Error al abrir modal: " + e.message, "error");
+    }
+};
+
+// Envía la solicitud de corrección del cajero
+window.submitCorrectionRequest = async function (e) {
+    e.preventDefault();
+    const auditId = document.getElementById('rc-audit-id').value;
+    const notes = document.getElementById('rc-notes').value.trim();
+
+    const itemRows = document.querySelectorAll('#rc-items-body tr');
+    const items = [];
+    itemRows.forEach(row => {
+        const recordId = parseInt(row.dataset.recordId);
+        const qtyInput = row.querySelector('.rc-qty-input');
+        const quantityChange = parseFloat(qtyInput.value) || 0.0;
+        items.push({ record_id: recordId, quantity_change: quantityChange });
+    });
+
+    const btn = document.getElementById('btn-submit-rc');
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Enviando...';
+    lucide.createIcons();
+
+    try {
+        const res = await fetch(`/api/audits/${auditId}/request-modification`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes, items })
+        });
+
+        if (res.ok) {
+            showToast("Solicitud de corrección enviada con éxito.", "success");
+            document.getElementById('request-correction-modal').classList.remove('active');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            const data = await res.json();
+            showToast("Error: " + (data.detail || "No se pudo procesar"), "error");
+            btn.disabled = false;
+            btn.innerHTML = 'Enviar Solicitud';
+            lucide.createIcons();
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("Error de conexión", "error");
+        btn.disabled = false;
+        btn.innerHTML = 'Enviar Solicitud';
+        lucide.createIcons();
+    }
+};
+
+// Abre el modal para que el Admin revise la solicitud de cambio
+window.openResolveModal = async function (auditId) {
+    try {
+        const res = await fetch(`/api/audits/${auditId}`);
+        if (!res.ok) throw new Error("No se pudo obtener la información.");
+
+        const audit = await res.json();
+        document.getElementById('resolve-audit-id').value = auditId;
+        document.getElementById('resolve-operator-code').innerText = audit.employee_code || 'N/A';
+        document.getElementById('resolve-justification').innerText = audit.modification_notes || 'Sin justificación';
+
+        // Cargar Original
+        const origBody = document.getElementById('resolve-orig-body');
+        origBody.innerHTML = '';
+        const origItems = audit.details?.items || [];
+        origItems.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.name || 'Producto'}</td>
+                <td style="text-align: center;">${item.quantity_change}</td>
+                <td style="text-align: right; font-family: monospace;">$${(item.subtotal || 0).toFixed(2)}</td>
+            `;
+            origBody.appendChild(tr);
+        });
+        document.getElementById('resolve-orig-total').innerText = `$${(audit.details?.total || 0).toFixed(2)}`;
+
+        // Cargar Propuesto
+        const propBody = document.getElementById('resolve-prop-body');
+        propBody.innerHTML = '';
+        const propItems = audit.proposed_details?.items || [];
+        propItems.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.name || 'Producto'}</td>
+                <td style="text-align: center; font-weight: bold; color: var(--success);">${item.quantity_change}</td>
+                <td style="text-align: right; font-family: monospace;">$${(item.subtotal || 0).toFixed(2)}</td>
+            `;
+            propBody.appendChild(tr);
+        });
+        document.getElementById('resolve-prop-total').innerText = `$${(audit.proposed_details?.total || 0).toFixed(2)}`;
+
+        document.getElementById('resolve-correction-modal').classList.add('active');
+        lucide.createIcons();
+    } catch (e) {
+        console.error(e);
+        showToast("Error al cargar la solicitud", "error");
+    }
+};
+
+// Resuelve la solicitud (Aprobar, Rechazar, Anular)
+window.resolveRequest = async function (action) {
+    const auditId = document.getElementById('resolve-audit-id').value;
+
+    let confirmMsg = "¿Estás seguro de rechazar esta solicitud?";
+    if (action === 'approve') confirmMsg = "¿Estás seguro de APROBAR y aplicar los cambios? Esto modificará el stock automáticamente.";
+    if (action === 'annul') confirmMsg = "¿Estás seguro de ANULAR completamente esta factura? El stock original se revertirá al inventario.";
+
+    const ok = await showConfirmModal(confirmMsg);
+    if (!ok) return;
+
+    try {
+        const res = await fetch(`/api/audits/${auditId}/resolve-modification`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action })
+        });
+
+        if (res.ok) {
+            showToast("Solicitud procesada con éxito.", "success");
+            document.getElementById('resolve-correction-modal').classList.remove('active');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            const data = await res.json();
+            showToast("Error: " + (data.detail || "No se pudo procesar"), "error");
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Error de conexión", "error");
+    }
+};
+
+// Abre el modal para anulación directa de factura (Admin)
+window.openDirectAnnulModal = function (auditId) {
+    document.getElementById('da-audit-id').value = auditId;
+    document.getElementById('da-notes').value = '';
+    document.getElementById('direct-annul-modal').classList.add('active');
+    lucide.createIcons();
+};
+
+// Procesa la anulación directa
+window.submitDirectAnnul = async function (e) {
+    e.preventDefault();
+    const auditId = document.getElementById('da-audit-id').value;
+    const notes = document.getElementById('da-notes').value.trim();
+
+    const ok = await showConfirmModal("¿Estás seguro de anular esta factura directamente? Se revertirá completamente el stock de los productos.");
+    if (!ok) return;
+
+    try {
+        const res = await fetch(`/api/audits/${auditId}/direct-annul`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes })
+        });
+
+        if (res.ok) {
+            showToast("Factura anulada con éxito.", "success");
+            document.getElementById('direct-annul-modal').classList.remove('active');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            const data = await res.json();
+            showToast("Error: " + (data.detail || "No se pudo anular"), "error");
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("Error de conexión", "error");
+    }
+};

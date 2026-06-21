@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroBase - Registro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="dark-theme auth-bg">
+    <script>
+        if(localStorage.getItem('theme') === 'light') document.body.classList.remove('dark-theme');
+        else document.body.classList.add('dark-theme');
+    </script>
+    <button onclick="toggleTheme()" class="btn btn-secondary" style="position: absolute; top: 20px; right: 20px; border-radius: 50%; width: 44px; height: 44px; padding: 0; display: flex; justify-content: center; align-items: center;" title="Modo Claro / Oscuro">
+        <i data-lucide="moon"></i>
+    </button>
+    <div class="auth-container">
+        <div class="auth-card glass-panel" style="width: 450px; position: relative;">
+            <button onclick="window.location.href='/'" class="btn btn-secondary" style="position: absolute; top: 15px; left: 15px; padding: 6px 12px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> Volver
+            </button>
+            <div class="auth-header" style="margin-top: 25px;">
+                <h2 id="reg-title">Registro de Usuario</h2>
+                <p id="reg-subtitle" style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;"></p>
+            </div>
+            
+            <div id="reg-step-1">
+                <!-- Secciones exclusivas de Negocio (Dueño) -->
+                <div id="owner-fields" style="display: none;">
+                    <div class="form-group">
+                        <label>Nombre del Negocio</label>
+                        <input type="text" id="reg-business-name" class="input-neumorphic" placeholder="Ej: Supermercado XYZ" onkeypress="if(event.key === 'Enter') checkRegisterEmail()">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label id="business-code-label">Código de Negocio</label>
+                    <input type="text" id="reg-business-code" class="input-neumorphic" placeholder="Ej: XYZ-2026" style="text-transform: uppercase;" onkeypress="if(event.key === 'Enter') checkRegisterEmail()">
+                    <small id="business-code-hint" style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 4px;"></small>
+                </div>
+
+                <div class="form-group" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                    <label>Tu Nombre Completo</label>
+                    <input type="text" id="reg-name" class="input-neumorphic" placeholder="Juan Pérez" onkeypress="if(event.key === 'Enter') checkRegisterEmail()">
+                </div>
+                <div class="form-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="reg-email" class="input-neumorphic" placeholder="nombre@empresa.com" onkeypress="if(event.key === 'Enter') checkRegisterEmail()">
+                </div>
+                <div class="form-group">
+                    <label>Tipo de Documento</label>
+                    <div style="display: flex; gap: 15px; margin-bottom: 8px; font-size: 0.9rem;">
+                        <label style="cursor: pointer;"><input type="radio" name="reg-cedula-type" value="cedula" checked onchange="updateRegisterCedulaLength()"> Cédula (10 dígitos)</label>
+                        <label style="cursor: pointer;"><input type="radio" name="reg-cedula-type" value="ruc" onchange="updateRegisterCedulaLength()"> RUC (13 dígitos)</label>
+                    </div>
+                    <input type="text" id="reg-cedula" class="input-neumorphic" placeholder="Sólo números..." maxlength="10" oninput="updateRegisterCedulaLength()" onkeypress="if(event.key === 'Enter') checkRegisterEmail()">
+                    <small id="reg-cedula-error" style="color: var(--danger); display: none; font-size: 0.75rem; margin-top: 4px;">Debe tener exactamente 10 dígitos.</small>
+                </div>
+                
+                <button class="btn btn-primary btn-block" style="margin-top:20px;" onclick="checkRegisterEmail()">Continuar</button>
+            </div>
+
+            <div id="reg-step-2" style="display: none;">
+                <p class="auth-subtitle">Ingresa una contraseña segura</p>
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="reg-pass" class="input-neumorphic" placeholder="••••••••" onkeypress="if(event.key === 'Enter') showConfirmPass()">
+                </div>
+                <button class="btn btn-primary btn-block" style="margin-top:20px;" onclick="showConfirmPass()">Siguiente</button>
+                <div class="auth-links" style="margin-top: 12px; text-align: center;">
+                    <button class="btn-link" onclick="backToRegStep(1)">Atrás</button>
+                </div>
+            </div>
+
+            <div id="reg-step-3" style="display: none;">
+                <p class="auth-subtitle">Confirma tu contraseña</p>
+                <div class="form-group">
+                    <label>Confirmar Contraseña</label>
+                    <input type="password" id="reg-confirm" class="input-neumorphic" placeholder="••••••••" onkeypress="if(event.key === 'Enter') registerUser()">
+                </div>
+                <button class="btn btn-primary btn-block" style="margin-top:20px;" onclick="registerUser()">Crear Cuenta</button>
+                <div class="auth-links" style="margin-top: 12px; text-align: center;">
+                    <button class="btn-link" onclick="backToRegStep(2)">Volver atrás</button>
+                </div>
+            </div>
+
+            <div class="auth-footer" style="margin-top:24px;">
+                <p>¿Ya tienes una cuenta? <a href="/login">Inicia sesión</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set up the UI based on the URL parameter 'flow'
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const flow = params.get('flow');
+            
+            if (flow === 'owner') {
+                document.getElementById('reg-title').innerText = "Crear Mi Negocio";
+                document.getElementById('reg-subtitle').innerText = "Crea un espacio de trabajo y conviértete en Administrador.";
+                document.getElementById('owner-fields').style.display = "block";
+                document.getElementById('business-code-label').innerText = "Código de Negocio (Créalo ahora)";
+                document.getElementById('business-code-hint').innerText = "Inventa un código único. Tus empleados lo usarán para unirse a tu negocio.";
+                window.registerFlow = 'owner';
+            } else {
+                document.getElementById('reg-title').innerText = "Unirme a un Negocio";
+                document.getElementById('reg-subtitle').innerText = "Ingresa el código que te proporcionó el Administrador para solicitar acceso.";
+                document.getElementById('business-code-label').innerText = "Código de Negocio";
+                document.getElementById('business-code-hint').innerText = "El administrador de tu empresa debió darte este código.";
+                window.registerFlow = 'employee';
+            }
+        });
+    </script>
+    <!-- Contenedor de Toasts -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/static/js/app.js?v=1.0.6"></script>
+</body>
+</html>

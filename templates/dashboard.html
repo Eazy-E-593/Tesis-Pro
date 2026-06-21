@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+
+{% block title %}MicroBase - Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-scroll-container" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; margin: -32px; padding: 32px;">
+{% if user.role == 'admin' %}
+    {% if not setup_completed %}
+        <!-- PANTALLA 1: Configuración Inicial / Plantillas (Solo Admin y setup no completado) -->
+        <header class="top-header">
+            <h1>Bienvenido, {{ user.full_name.split()[0] if user else 'Usuario' }}</h1>
+            <p class="text-muted">Aquí tienes un resumen rápido y plantillas para empezar.</p>
+        </header>
+
+        <div class="dashboard-grid">
+            <div class="glass-panel stat-card">
+                <div class="stat-header" style="background-color: var(--primary);">
+                    <i data-lucide="package"></i> Gestión de Inventario
+                </div>
+                <div class="stat-body">
+                    Revisa existencias, COD y costos.
+                </div>
+            </div>
+            <div class="glass-panel stat-card">
+                <div class="stat-header" style="background-color: var(--success);">
+                    <i data-lucide="users"></i> Gestión de Clientes
+                </div>
+                <div class="stat-body">
+                    Directorio y tracking de clientes.
+                </div>
+            </div>
+            <div class="glass-panel stat-card">
+                <div class="stat-header" style="background-color: var(--danger);">
+                    <i data-lucide="briefcase"></i> Empleados
+                </div>
+                <div class="stat-body">
+                    Nómina y personal activo.
+                </div>
+            </div>
+        </div>
+
+        <h3 style="margin-top: 32px; margin-bottom: 16px; font-weight: 500;">Puedes elegir entre plantillas rápidas (Configuración Sugerida)</h3>
+        <div class="template-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <div class="glass-panel template-card" onclick="showTemplateModal('restaurant')" style="cursor: pointer; transition: transform 0.2s;">
+                <div class="template-icon" style="color: var(--warning);"><i data-lucide="utensils"></i></div>
+                <h4>Restaurante</h4>
+            </div>
+            <div class="glass-panel template-card" onclick="showTemplateModal('store')" style="cursor: pointer; transition: transform 0.2s;">
+                <div class="template-icon" style="color: var(--success);"><i data-lucide="store"></i></div>
+                <h4>Tienda</h4>
+            </div>
+            <div class="glass-panel template-card" onclick="showTemplateModal('gym')" style="cursor: pointer; transition: transform 0.2s;">
+                <div class="template-icon" style="color: var(--primary);"><i data-lucide="dumbbell"></i></div>
+                <h4>Gimnasio</h4>
+            </div>
+            <div class="glass-panel template-card" onclick="showTemplateModal('liquor')" style="cursor: pointer; transition: transform 0.2s;">
+                <div class="template-icon" style="color: var(--danger);"><i data-lucide="wine"></i></div>
+                <h4>Licorería</h4>
+            </div>
+        </div>
+
+        <!-- Panel de Sugerencias (Oculto por defecto) -->
+        <div id="template-suggestion-panel" class="glass-panel" style="display: none; margin-top: 24px; animation: fadeIn 0.3s ease;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+                <h2 id="template-modal-title" style="margin: 0; font-weight: 600;">¿Tu negocio es un [Tipo]?</h2>
+                <button class="btn-link" onclick="document.getElementById('template-suggestion-panel').style.display='none'" style="padding: 4px; border: none; background: transparent; cursor: pointer; color: white;"><i data-lucide="x"></i></button>
+            </div>
+            <p style="margin-bottom: 20px; color: var(--text-muted);">Te sugerimos usar esta estructura de base de datos para empezar (puedes modificarla a tu gusto después 😉).</p>
+
+            <div id="template-tables-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                <!-- Tables will be injected here via JS -->
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border-glass); padding-top: 16px;">
+                <button class="btn btn-secondary" onclick="document.getElementById('template-suggestion-panel').style.display='none'">Cancelar</button>
+                <button class="btn btn-primary" id="btn-confirm-template" onclick="confirmTemplate()">Sí, crear estas tablas</button>
+            </div>
+        </div>
+    {% else %}
+        <!-- PANTALLA 2: Dashboard Analítico Completo con Gráfico Real-Time (Solo Admin y setup completado) -->
+        <header class="top-header" style="margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <h1>Dashboard Analítico</h1>
+                <p class="text-muted">Resumen financiero y rendimiento de tu negocio en tiempo real.</p>
+            </div>
+            <!-- Filtro de Fechas -->
+            <div class="glass-panel" style="padding: 10px 16px; display: flex; gap: 12px; align-items: center; border-radius: var(--radius-md); flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <label for="dash-start-date" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Desde:</label>
+                    <input type="date" id="dash-start-date" class="input-neumorphic" style="padding: 6px 12px; font-size: 0.85rem; height: 34px; width: 140px; background: rgba(0,0,0,0.15);" onchange="onDateFilterChange()">
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <label for="dash-end-date" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Hasta:</label>
+                    <input type="date" id="dash-end-date" class="input-neumorphic" style="padding: 6px 12px; font-size: 0.85rem; height: 34px; width: 140px; background: rgba(0,0,0,0.15);" onchange="onDateFilterChange()">
+                </div>
+                <button class="btn btn-secondary" onclick="clearDateFilter()" style="padding: 6px 12px; height: 34px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px;">
+                    <i data-lucide="x" style="width: 14px; height: 14px;"></i> Limpiar
+                </button>
+            </div>
+        </header>
+
+        <!-- KPI Cards Grid -->
+        <div class="dashboard-grid" style="margin-bottom: 28px;">
+            <div class="glass-panel stat-card" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 500; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase;">Ventas Totales</span>
+                    <i data-lucide="arrow-up-right" style="color: var(--success); width: 20px; height: 20px;"></i>
+                </div>
+                <div style="margin-top: 16px;">
+                    <span id="dash-total-sales" style="font-size: 1.8rem; font-weight: bold; color: var(--success);">$0.00</span>
+                </div>
+            </div>
+            
+            <div class="glass-panel stat-card" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 500; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase;">Compras de Insumos</span>
+                    <i data-lucide="arrow-down-left" style="color: var(--warning); width: 20px; height: 20px;"></i>
+                </div>
+                <div style="margin-top: 16px;">
+                    <span id="dash-total-purchases" style="font-size: 1.8rem; font-weight: bold; color: var(--warning);">$0.00</span>
+                </div>
+            </div>
+
+            <div class="glass-panel stat-card" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 500; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase;">Ganancia Estimada</span>
+                    <i data-lucide="dollar-sign" style="color: var(--primary); width: 20px; height: 20px;"></i>
+                </div>
+                <div style="margin-top: 16px;">
+                    <span id="dash-net-profit" style="font-size: 1.8rem; font-weight: bold; color: var(--primary);">$0.00</span>
+                </div>
+            </div>
+
+            <div class="glass-panel stat-card" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 500; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase;">Transacciones</span>
+                    <i data-lucide="clipboard-list" style="color: var(--text-muted); width: 20px; height: 20px;"></i>
+                </div>
+                <div style="margin-top: 16px;">
+                    <span id="dash-total-tx" style="font-size: 1.8rem; font-weight: bold; color: var(--text-main);">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerta de Stock Bajo (Opcional, se muestra dinámicamente si hay alertas) -->
+        <div id="dash-low-stock-alert" class="glass-panel" style="display: none; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; padding: 16px; margin-bottom: 28px; align-items: center; gap: 12px;">
+            <i data-lucide="alert-triangle" style="color: #ef4444; width: 24px; height: 24px; flex-shrink: 0;"></i>
+            <div style="flex: 1;">
+                <strong style="color: #ef4444; display: block; font-size: 0.95rem;">¡Alerta de Inventario Crítico!</strong>
+                <span style="color: var(--text-muted); font-size: 0.85rem;">Tienes <span id="dash-low-stock-count" style="font-weight: bold; color: var(--text-main);">0</span> producto(s) con stock muy bajo o agotado en tu Inventario.</span>
+            </div>
+            <a href="/tables-view" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--border-glass); text-decoration: none;">Ver Inventario</a>
+        </div>
+
+        <!-- Product Comparison Filter Panel -->
+        <div class="glass-panel" style="margin-bottom: 28px; padding: 20px; border-radius: var(--radius-md); position: relative; z-index: 10;">
+            <label style="font-weight: 500; font-size: 0.95rem; color: var(--text-main); display: block; margin-bottom: 12px;">
+                <i data-lucide="filter" style="width: 16px; height: 16px; margin-right: 4px; display: inline-block; vertical-align: middle; color: var(--primary);"></i>
+                Comparar Tendencias de Ventas por Producto:
+            </label>
+            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <div style="position: relative; flex: 1; min-width: 250px;">
+                    <i data-lucide="search" style="position: absolute; left: 14px; top: 12px; width: 18px; height: 18px; color: var(--text-muted); pointer-events: none;"></i>
+                    <input type="text" id="dash-prod-search" class="input-neumorphic" placeholder="Buscar y agregar producto del inventario..." style="padding-left: 44px; width: 100%; box-sizing: border-box; height: 44px;" onfocus="showDashProductDropdown()" oninput="searchDashProducts(this.value)">
+                    <div id="dash-prod-results" class="glass-panel" style="display: none; position: absolute; left: 0; right: 0; top: 48px; z-index: 100; max-height: 200px; overflow-y: auto; background: var(--bg-dark); box-shadow: 0 10px 25px rgba(0,0,0,0.5); padding: 0; border: 1px solid var(--border-glass);">
+                        <!-- Dynamic search results -->
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="clearProductFilters()" style="height: 44px; padding: 0 18px; display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="rotate-ccw" style="width: 16px; height: 16px;"></i> Reiniciar Gráfico
+                </button>
+            </div>
+            <div id="selected-products-tags" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
+                <!-- Tags will be dynamically placed here -->
+            </div>
+        </div>
+
+        <!-- Real-Time Interactive Chart Card -->
+        <div class="glass-panel" style="padding: 24px; border-radius: var(--radius-md); margin-bottom: 28px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 8px;">
+                <h3 id="chart-title" style="margin: 0; font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="activity" style="color: var(--primary);"></i>
+                    Tendencia de Ventas (Tiempo Real - 5s)
+                </h3>
+                <span class="badge" style="background: rgba(16, 185, 129, 0.12); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.75rem; padding: 4px 10px; border-radius: 20px; display: flex; align-items: center; gap: 4px;">
+                    <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--success); display: inline-block; animation: pulse 1.5s infinite;"></span> Activo
+                </span>
+            </div>
+            <div style="position: relative; width: 100%; height: 350px;">
+                <canvas id="salesChart"></canvas>
+            </div>
+        </div>
+
+        <!-- CSS Styles for Product Performance Cards -->
+        <style>
+            .product-performance-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 24px;
+                margin-bottom: 28px;
+            }
+            @media (max-width: 768px) {
+                .product-performance-grid {
+                    grid-template-columns: 1fr;
+                    gap: 16px;
+                }
+            }
+            .product-performance-item {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 14px 18px;
+                border-radius: var(--radius-md);
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px solid var(--border-color);
+                transition: all var(--transition-fast);
+            }
+            .product-performance-item:hover {
+                background: rgba(255, 255, 255, 0.05);
+                transform: translateY(-2px);
+                border-color: rgba(255, 255, 255, 0.15);
+            }
+            .product-info-wrapper {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .product-rank {
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 700;
+                font-size: 0.85rem;
+                flex-shrink: 0;
+            }
+            .rank-top-1 { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+            .rank-top-2 { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); }
+            .rank-top-3 { background: rgba(180, 83, 9, 0.15); color: #b45309; border: 1px solid rgba(180, 83, 9, 0.3); }
+
+            .rank-least-1 { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+            .rank-least-2 { background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3); }
+            .rank-least-3 { background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); }
+
+            .product-details {
+                display: flex;
+                flex-direction: column;
+            }
+            .product-name {
+                font-weight: 500;
+                font-size: 0.95rem;
+                color: var(--text-main);
+            }
+            .product-sku {
+                font-size: 0.75rem;
+                color: var(--text-muted);
+                margin-top: 2px;
+            }
+            .product-stats {
+                text-align: right;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+            }
+            .product-qty {
+                font-weight: 600;
+                font-size: 0.95rem;
+                color: var(--text-main);
+            }
+            .product-revenue {
+                font-size: 0.8rem;
+                color: var(--text-muted);
+                margin-top: 2px;
+            }
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+            .spin {
+                animation: spin 1s linear infinite;
+            }
+        </style>
+
+        <!-- Product Performance Panels -->
+        <div class="product-performance-grid">
+            <!-- Top Sold Panel -->
+            <div class="glass-panel" style="padding: 24px; border-radius: var(--radius-md); display: flex; flex-direction: column;">
+                <h3 style="margin: 0 0 20px 0; font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; color: var(--success);">
+                    <i data-lucide="trending-up" style="width: 20px; height: 20px;"></i>
+                    Productos Más Vendidos (Top 3)
+                </h3>
+                <div id="top-sold-list" style="display: flex; flex-direction: column; gap: 12px; flex: 1;">
+                    <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+                        <i data-lucide="loader-2" class="spin" style="width: 24px; height: 24px; margin: 0 auto 8px; display: block; opacity: 0.5;"></i>
+                        Cargando estadísticas...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Least Sold Panel -->
+            <div class="glass-panel" style="padding: 24px; border-radius: var(--radius-md); display: flex; flex-direction: column;">
+                <h3 style="margin: 0 0 20px 0; font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; color: var(--danger);">
+                    <i data-lucide="trending-down" style="width: 20px; height: 20px;"></i>
+                    Productos Menos Vendidos (Top 3)
+                </h3>
+                <div id="least-sold-list" style="display: flex; flex-direction: column; gap: 12px; flex: 1;">
+                    <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+                        <i data-lucide="loader-2" class="spin" style="width: 24px; height: 24px; margin: 0 auto 8px; display: block; opacity: 0.5;"></i>
+                        Cargando estadísticas...
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+{% else %}
+    <!-- PANEL DE BIENVENIDA SIMPLE PARA EMPLEADOS (Cajeros, Bodegueros, Managers) -->
+    <header class="top-header" style="margin-bottom: 28px;">
+        <h1>¡Hola, {{ user.full_name.split()[0] if user else 'Usuario' }}!</h1>
+        <p class="text-muted">Sistema POS de MicroBase listo para operar.</p>
+    </header>
+
+    <div class="glass-panel" style="padding: 40px; text-align: center; border-radius: var(--radius-md); margin-bottom: 28px;">
+        <i data-lucide="shield" style="width: 64px; height: 64px; color: var(--primary); margin-bottom: 16px; opacity: 0.8;"></i>
+        <h2 style="font-weight: 600; margin-bottom: 8px; font-size: 1.5rem;">Panel de Operación Activo</h2>
+        <p style="color: var(--text-muted); max-width: 500px; margin: 0 auto 24px; line-height: 1.6; font-size: 0.95rem;">
+            Tienes permisos de <strong>{{ user.role }}</strong>. Puedes acceder a las tablas asignadas del negocio o registrar movimientos desde la barra lateral.
+        </p>
+        <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+            <a href="/tables-view" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+                <i data-lucide="table" style="width:18px;"></i>
+                Ir a Mis Tablas
+            </a>
+            <a href="/audits-view" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+                <i data-lucide="clipboard-list" style="width:18px;"></i>
+                Ver Auditoría
+            </a>
+        </div>
+    </div>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if user.role == 'admin' and setup_completed %}
+<!-- Cargar Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endif %}
+<script src="/static/js/dashboard.js?v=1.0.8"></script>
+{% endblock %}

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script>
+    const currentUserRole = "{{ user.role if user else 'empleado' }}";
+</script>
+<header class="top-header">
+    <h1 id="current-table-name">Selecciona un Espacio de Trabajo</h1>
+</header>
+
+<div class="table-container glass-panel" id="table-container" style="display: none;">
+    <div class="table-actions">
+        <!-- 1. Movimientos Button (Visible solo en Inventario) -->
+        <button id="btn-movimientos" class="btn btn-warning" onclick="openMovementPanel()"
+            style="background: var(--warning); color: #000; border: none; display: none;">
+            <i data-lucide="shopping-cart"></i> Movimientos
+        </button>
+
+        <!-- 2. Añadir Columna -->
+        {% if user.role in ['admin', 'manager'] %}
+        <button class="btn btn-primary admin-edit-element" onclick="showAddColumnModal()">
+            <i data-lucide="plus-circle"></i> Añadir Columna
+        </button>
+
+        <!-- 2b. Editar Columnas -->
+        <button class="btn btn-secondary admin-edit-element" onclick="openManageColumnsModal()" style="border: 1px solid var(--border-color);">
+            <i data-lucide="sliders-horizontal"></i> Editar Columnas
+        </button>
+        {% endif %}
+
+        <!-- 3. Crear Producto / Fila -->
+        <button id="btn-create-row" class="btn btn-success admin-edit-element" onclick="addRow()">
+            <i data-lucide="plus"></i> Crear Fila
+        </button>
+
+        <!-- 4. Eliminar Tabla -->
+        {% if user.role in ['admin', 'manager'] %}
+        <button class="btn btn-danger admin-edit-element" onclick="deleteCurrentTable()"
+            style="background: var(--danger); color: white; border: none;">
+            <i data-lucide="trash-2"></i> Eliminar Tabla
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="table-scroll-area">
+        <table class="data-table" id="data-table">
+            <thead>
+                <tr id="table-head-row">
+                    <!-- Las cabeceras dinámicas van aquí -->
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <!-- Filas dinámicas van aquí -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Welcome Screen if nothing selected -->
+<div id="welcome-screen" class="welcome-screen">
+    <i data-lucide="sparkles" class="welcome-icon"></i>
+    <h2>Gestión de Tablas</h2>
+    <p>Selecciona una tabla en el menú lateral para empezar a administrar o crea una nueva.</p>
+    {% if user.role in ['admin', 'manager'] %}
+    <div style="margin-top: 24px; display: flex; justify-content: center; width: 100%;">
+        <button class="btn btn-primary admin-edit-element" onclick="window.location.href='/create-table'" style="padding: 12px 32px; font-size: 1rem; box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);">
+            <i data-lucide="layout-template"></i> Crear Mi Propia Tabla
+        </button>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Modals -->
+<div class="modal-overlay" id="add-column-modal">
+    <div class="modal glass-panel">
+        <div class="modal-header">
+            <h3>Nueva Columna</h3>
+            <button class="close-btn" onclick="closeModal('add-column-modal')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Nombre de la columna (Campo)</label>
+                <input type="text" id="new-col-name" class="input-neumorphic" placeholder="Ej: Categoría, Estado..." />
+            </div>
+            <div class="form-group">
+                <label>Tipo de dato</label>
+                <select id="new-col-type" class="input-neumorphic">
+                    <option value="text">Texto Libre</option>
+                    <option value="number_int">Número Entero</option>
+                    <option value="number_decimal">Número Decimal</option>
+                    <option value="date">Fecha</option>
+                    <option value="select">Selección Única</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Opciones sugeridas <span style="color:var(--text-muted); font-size:0.8rem;">(separadas por comas, opcional)</span></label>
+                <input type="text" id="new-col-options" class="input-neumorphic" placeholder="Ej: Activo, Inactivo, Pendiente" />
+            </div>
+            <div class="form-group">
+                <label>Posición de la columna</label>
+                <select id="new-col-position" class="input-neumorphic">
+                    <option value="end">Al final</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('add-column-modal')">Cancelar</button>
+            <button class="btn btn-primary" onclick="submitNewColumn()">Crear Columna</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Gestionar / Editar Columnas -->
+<div class="modal-overlay" id="manage-columns-modal" style="align-items: flex-start; padding-top: 60px;">
+    <div class="modal glass-panel" style="width: 560px; max-width: 95vw;">
+        <div class="modal-header">
+            <h3><i data-lucide="sliders-horizontal" style="width:18px; margin-right:8px;"></i>Editar Columnas</h3>
+            <button class="close-btn" onclick="document.getElementById('manage-columns-modal').classList.remove('active')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+            <div id="manage-columns-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="document.getElementById('manage-columns-modal').classList.remove('active')">Cerrar</button>
+            <button class="btn btn-primary" onclick="saveAllColumns()" id="btn-save-all-cols">
+                <i data-lucide="save"></i> Guardar Todo
+            </button>
+        </div>
+    </div>
+</div>
+
+<datalist id="clients-name-sug"></datalist>
+<datalist id="clients-cedula-sug"></datalist>
+
+<!-- Extra: Side Panel para Movimientos -->
+<div id="movement-panel" class="side-panel">
+    <div class="panel-header">
+        <h2>Registrar Movimiento</h2>
+        <button class="btn-link" onclick="closeMovementPanel()"><i data-lucide="x"></i></button>
+    </div>
+    <div class="panel-body">
+        <div style="margin-bottom: 16px; display: flex; gap: 10px;">
+            <label style="flex: 1; padding: 8px; background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: 6px; cursor: pointer; text-align: center;">
+                <input type="radio" name="mov-type" value="Venta" checked onchange="toggleMovementType()"> Venta (Salida)
+            </label>
+            {% if user.role in ['admin', 'manager'] %}
+            <label style="flex: 1; padding: 8px; background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: 6px; cursor: pointer; text-align: center;">
+                <input type="radio" name="mov-type" value="Compra" onchange="toggleMovementType()"> Compra (Ingreso)
+            </label>
+            {% endif %}
+        </div>
+        <div style="margin-bottom: 20px; background: rgba(0,0,0,0.1); padding: 12px; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label id="lbl-mov-client" style="font-size: 0.8rem; color: var(--text-muted); font-weight: bold; margin: 0;">
+                    <i data-lucide="user" style="width: 12px; margin-right: 4px;"></i> Destinatario / Cliente
+                </label>
+                <label style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="mov-consumidor-final" onchange="toggleConsumidorFinal()" style="margin-right: 4px;"> Consumidor Final
+                </label>
+            </div>
+            
+            <div id="search-type-radios" style="display: flex; gap: 15px; margin-bottom: 10px; font-size: 0.85rem;">
+                <label style="cursor: pointer;"><input type="radio" name="client-search-type" value="nombre" checked onchange="toggleClientSearchType()"> Buscar por Nombre</label>
+                <label style="cursor: pointer;"><input type="radio" name="client-search-type" value="cedula" onchange="toggleClientSearchType()"> Buscar por Cédula/RUC</label>
+            </div>
+
+            <div id="div-client-nombre">
+                <input type="text" id="mov-client-name" list="clients-name-sug" class="input-neumorphic" placeholder="Nombre..." style="width: 100%; margin-bottom: 8px;" onchange="autoFillClient('name')">
+            </div>
+            
+            <div id="div-client-cedula" style="display: none;">
+                <div style="display: flex; gap: 10px; margin-bottom: 8px; font-size: 0.8rem;">
+                    <label style="cursor: pointer;"><input type="radio" name="cedula-type" value="cedula" checked onchange="validateCedulaInput()"> Cédula (10 dígitos)</label>
+                    <label style="cursor: pointer;"><input type="radio" name="cedula-type" value="ruc" onchange="validateCedulaInput()"> RUC (13 dígitos)</label>
+                </div>
+                <input type="text" id="mov-client-cedula" list="clients-cedula-sug" class="input-neumorphic" placeholder="Sólo números..." style="width: 100%; margin-bottom: 4px;" oninput="validateCedulaInput()" onchange="autoFillClient('cedula')">
+                <small id="cedula-error" style="color: var(--danger); display: none; font-size: 0.75rem;">Longitud incorrecta.</small>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 10px; position: relative;">
+            <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 6px; font-weight: bold;">
+                <i data-lucide="search" style="width: 12px; margin-right: 4px;"></i> Buscar y Agregar al Carrito
+            </label>
+            <input type="search" id="inventory-search" class="input-neumorphic" placeholder="Busca producto por Nombre o COD..." onkeyup="searchInventory()" onfocus="searchInventory()" style="width: 100%; border-color: var(--primary);">
+            <div id="search-results" class="search-results" style="margin-top: 5px; position: absolute; width: 100%; z-index: 100; display: none;"></div>
+        </div>
+
+        <div id="cart-section">
+            <h3 style="margin-top: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Carrito / Transacción</h3>
+            <div id="cart-items" class="cart-items"></div>
+        </div>
+    </div>
+    <div class="panel-footer" style="background: rgba(0,0,0,0.2);">
+        <div id="cart-financials">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem;">
+                <span>Subtotal:</span>
+                <span id="cart-subtotal">$0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem;">
+                <span>IVA (15%):</span>
+                <span id="cart-iva">$0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 1.2rem; font-weight: bold; color: var(--success);">
+                <span>TOTAL:</span>
+                <span id="cart-total">$0.00</span>
+            </div>
+        </div>
+        <button id="btn-process-mov" class="btn btn-primary btn-block" onclick="processMovement()" style="width: 100%; justify-content: center;">Procesar Factura</button>
+    </div>
+</div>
+{% endblock %}

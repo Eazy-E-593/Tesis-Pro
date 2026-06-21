@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket de {{ audit.details.type }} #{{ audit.id }}</title>
+    <link rel="stylesheet" href="/static/css/ticket.css">
+</head>
+
+<body>
+    <div class="ticket-header">
+        <h1>MicroBase POS</h1>
+        <p>Ticket de {{ audit.details.type }}</p>
+    </div>
+
+    <div class="ticket-info">
+        <p><strong>Ticket #:</strong> {{ audit.id }}</p>
+        <p><strong>Fecha:</strong> {{ audit.timestamp.strftime('%Y-%m-%d %H:%M') if audit.timestamp else 'N/A' }}</p>
+        <p><strong>Operador:</strong> {{ audit.employee_code }}</p>
+        <p><strong>{% if audit.details.type == 'Compra' %}Proveedor{% else %}Cliente{% endif %}:</strong> {{
+            audit.details.client_name or 'Consumidor Final' }}</p>
+        {% if audit.details.client_cedula %}
+        <p><strong>Cédula/RUC:</strong> {{ audit.details.client_cedula }}</p>
+        {% endif %}
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Cant</th>
+                <th>Concepto</th>
+                <th class="text-right">Importe</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in audit.details['items'] %}
+            <tr>
+                <td>{{ item.quantity_change }}</td>
+                <td>{{ item.name }}<br><small>${{ "%.2f"|format(item.price) }} c/u</small></td>
+                <td class="text-right">${{ "%.2f"|format(item.subtotal) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="ticket-footer">
+        <div class="totals">
+            <span>Subtotal:</span>
+            <span>${{ "%.2f"|format(audit.details.subtotal) }}</span>
+        </div>
+        <div class="totals">
+            <span>IVA (15%):</span>
+            <span>${{ "%.2f"|format(audit.details.iva) }}</span>
+        </div>
+        <div class="totals grand-total">
+            <span>TOTAL:</span>
+            <span>${{ "%.2f"|format(audit.details.total) }}</span>
+        </div>
+
+        <p class="thank-you">¡Gracias por su {{ 'proveeduría' if audit.details.type == 'Compra' else 'compra' }}!</p>
+        <p class="thank-you" style="margin-top:2px;">Generado por MicroBase ERP</p>
+    <div class="no-print print-controls">
+        <button class="print-btn" onclick="window.print()">
+            Imprimir
+        </button>
+        <button class="print-btn close-btn" onclick="closeTicket()">
+            Cerrar
+        </button>
+    </div>
+
+    <script>
+        function closeTicket() {
+            if (window.parent && window.parent.document.getElementById('ticket-modal')) {
+                window.parent.document.getElementById('ticket-modal').classList.remove('active');
+            } else {
+                window.close();
+            }
+        }
+    </script>
+</body>
+
+
+</html>

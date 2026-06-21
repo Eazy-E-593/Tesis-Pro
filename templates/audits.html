@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}MicroBase - Historial Fiscal{% endblock %}
+
+{% block content %}
+<div class="audits-container">
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+        <h1 style="font-size: 1.8rem; display: flex; align-items: center; gap: 12px; font-weight: bold; margin: 0;">
+            <i data-lucide="clipboard-list" style="width: 28px; height: 28px; color: var(--primary);"></i>
+            Historial Fiscal y Auditoría
+        </h1>
+        <div style="font-size: 0.9rem; color: var(--text-muted);" id="audits-counter">
+            {% if q %}
+            Encontrados {{ total_count }} resultados para "{{ q }}". Mostrando {{ audits|length }}.
+            {% else %}
+            Mostrando {{ audits|length }} de {{ total_count }} movimientos.
+            {% endif %}
+        </div>
+    </div>
+
+
+    <!-- Tabs de Selección de Estado -->
+    <div class="tabs-neumorphic"
+        style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border-glass); padding-bottom: 12px; flex-wrap: wrap;">
+        <a href="/audits-view?tab=active{% if q %}&q={{ q }}{% endif %}"
+            class="tab-link {% if tab == 'active' or not tab %}active{% endif %}"
+            style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 10px 20px; border-radius: 12px; font-weight: 500; transition: all 0.3s; color: var(--text-muted); font-size: 0.95rem;">
+            <i data-lucide="check-circle" style="width: 18px; height: 18px;"></i>
+            Facturas Activas
+        </a>
+        <a href="/audits-view?tab=pending{% if q %}&q={{ q }}{% endif %}"
+            class="tab-link {% if tab == 'pending' %}active{% endif %}"
+            style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 10px 20px; border-radius: 12px; font-weight: 500; transition: all 0.3s; color: var(--text-muted); font-size: 0.95rem; position: relative;">
+            <i data-lucide="clock" style="width: 18px; height: 18px;"></i>
+            Solicitudes de Cambio
+            {% if pending_count > 0 %}
+            <span class="badge"
+                style="background: var(--danger); color: white; padding: 2px 6px; border-radius: 20px; font-size: 0.75rem; margin-left: 4px; box-shadow: 0 0 6px var(--danger); font-weight: bold;">{{
+                pending_count }}</span>
+            {% endif %}
+        </a>
+        <a href="/audits-view?tab=annulled{% if q %}&q={{ q }}{% endif %}"
+            class="tab-link {% if tab == 'annulled' %}active{% endif %}"
+            style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 10px 20px; border-radius: 12px; font-weight: 500; transition: all 0.3s; color: var(--text-muted); font-size: 0.95rem;">
+            <i data-lucide="x-circle" style="width: 18px; height: 18px;"></i>
+            Historial de Anuladas
+        </a>
+    </div>
+
+    <style>
+        .tab-link:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main) !important;
+        }
+
+        .tab-link.active {
+            background: var(--primary) !important;
+            color: white !important;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+    </style>
+
+    <form method="get" action="/audits-view" style="display: flex; gap: 12px; margin-bottom: 24px; width: 100%;">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <div style="position: relative; flex: 1; display: flex; align-items: center;">
+            <i data-lucide="search"
+                style="position: absolute; left: 14px; width: 18px; height: 18px; color: var(--text-muted); pointer-events: none;"></i>
+            <input type="text" name="q" id="audit-search-input" value="{{ q }}" class="input-neumorphic"
+                placeholder="Buscar por ticket (ej: TKT-150), operador, detalle de la operación, fecha (YYYY-MM-DD)..."
+                style="padding-left: 44px; width: 100%; height: 46px; box-sizing: border-box;" list="audit-suggestions"
+                autocomplete="off" oninput="fetchAuditSuggestions(this.value)">
+            <datalist id="audit-suggestions">
+                <option value="Venta"></option>
+                <option value="Compra"></option>
+                <option value="Creación"></option>
+                <option value="Edición"></option>
+                <option value="Eliminación"></option>
+            </datalist>
+            {% if q %}
+            <a href="/audits-view?tab={{ tab }}"
+                style="position: absolute; right: 14px; color: var(--text-muted); display: flex; align-items: center; text-decoration: none;"
+                title="Limpiar búsqueda">
+                <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+            </a>
+            {% endif %}
+        </div>
+        <button type="submit" class="btn btn-primary"
+            style="height: 46px; padding: 0 24px; display: inline-flex; align-items: center; justify-content: center; font-weight: 600;">
+            <i data-lucide="search" style="width: 18px; height: 18px; margin-right: 6px;"></i>
+            Buscar
+        </button>
+    </form>
+
+    <script>
+        async function fetchAuditSuggestions(val) {
+            if (!val || val.trim().length < 1) return;
+            try {
+                const res = await fetch(`/api/audits/suggest?q=${encodeURIComponent(val)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const dl = document.getElementById('audit-suggestions');
+                    const statics = ["Venta", "Compra", "Creación", "Edición", "Eliminación"];
+                    let html = '';
+                    statics.forEach(s => {
+                        html += `<option value="${s}"></option>`;
+                    });
+                    data.forEach(item => {
+                        if (!statics.includes(item)) {
+                            html += `<option value="${item}"></option>`;
+                        }
+                    });
+                    dl.innerHTML = html;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    </script>
+
+    <div class="table-container glass-panel" style="margin-bottom: 24px;">
+        <div class="table-scroll-area">
+            <table class="data-table" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Réf (ID)</th>
+                        <th>Operador / COD</th>
+                        <th>Detalle de la Operación (Facturación)</th>
+                        <th style="text-align: right;">Fecha y Hora</th>
+                        <th style="text-align: center; width: 160px;">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if audits|length == 0 %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                            <i data-lucide="inbox"
+                                style="width: 48px; height: 48px; opacity: 0.5; margin-bottom: 12px;"></i><br>
+                            No hay movimientos registrados en este apartado.
+                        </td>
+                    </tr>
+                    {% else %}
+                    {% for a in audits %}
+                    <tr>
+                        <td style="color: var(--text-muted); font-family: monospace;">TKT-{{ a.id }}</td>
+                        <td>
+                            <span class="badge"
+                                style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px;">
+                                <i data-lucide="user" style="width: 12px; height: 12px; margin-right: 4px;"></i>
+                                {{ a.employee_code or 'Desconocido' }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if 'Venta |' in a.action %}
+                            <span style="color: var(--success); font-weight: bold;">[<i data-lucide="arrow-up-right"
+                                    style="width: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i>]
+                                {{ a.action }}</span>
+                            {% elif 'Compra |' in a.action %}
+                            <span style="color: var(--warning); font-weight: bold;">[<i data-lucide="arrow-down-left"
+                                    style="width: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i>]
+                                {{ a.action }}</span>
+                            {% else %}
+                            {{ a.action }}
+                            {% endif %}
+
+                            {% if a.status == 'pending_change' %}
+                            <br>
+                            <span class="badge"
+                                style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: #f59e0b; font-size: 0.8rem; margin-top: 4px; display: inline-block; font-weight: 500;">
+                                <i data-lucide="alert-circle"
+                                    style="width:12px; height:12px; margin-right:4px; display:inline-block; vertical-align:middle;"></i>
+                                Corrección Solicitada: "{{ a.modification_notes }}"
+                            </span>
+                            {% elif a.status == 'modified' %}
+                            <br>
+                            <span class="badge"
+                                style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; font-size: 0.8rem; margin-top: 4px; display: inline-block; font-weight: 500;">
+                                <i data-lucide="check-circle"
+                                    style="width:12px; height:12px; margin-right:4px; display:inline-block; vertical-align:middle;"></i>
+                                Modificada por Admin
+                            </span>
+                            {% elif a.status == 'annulled' %}
+                            <br>
+                            <span class="badge"
+                                style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; font-size: 0.8rem; margin-top: 4px; display: inline-block; font-weight: 500;">
+                                <i data-lucide="slash"
+                                    style="width:12px; height:12px; margin-right:4px; display:inline-block; vertical-align:middle;"></i>
+                                Anulada. Motivo: "{{ a.modification_notes }}"
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 0.85em; color: var(--text-muted); text-align: right;">
+                            {% if a.timestamp %}
+                            {{ a.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                {% if a.details %}
+                                <button onclick="openTicketModal('{{ a.id }}')" title="Imprimir Ticket"
+                                    style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;">
+                                    <i data-lucide="printer"
+                                        style="width: 18px; height: 18px; color: var(--primary);"></i>
+                                </button>
+                                {% endif %}
+
+                                {% if a.details and (a.details.type == 'Venta' or a.details.type == 'Compra') %}
+                                {% if a.status == 'pending_change' %}
+                                {% if user.role in ['admin', 'manager'] %}
+                                <button onclick="openResolveModal('{{ a.id }}')" title="Revisar Solicitud de Cambio"
+                                    class="btn btn-primary"
+                                    style="padding: 4px 10px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; background: var(--primary); border: none;">
+                                    <i data-lucide="git-pull-request" style="width: 14px; height: 14px;"></i>
+                                    Revisar
+                                </button>
+                                {% else %}
+                                <span class="badge"
+                                    style="background: rgba(255,255,255,0.05); color: var(--text-muted); font-size: 0.75rem; padding: 4px 8px;">Pendiente</span>
+                                {% endif %}
+                                {% elif a.status in [None, 'active', 'modified'] %}
+                                <button onclick="openRequestModal('{{ a.id }}')" title="Solicitar Corrección"
+                                    class="btn btn-secondary"
+                                    style="padding: 4px 8px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px;">
+                                    <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
+                                    Corregir
+                                </button>
+                                {% if user.role in ['admin', 'manager'] %}
+                                <button onclick="openDirectAnnulModal('{{ a.id }}')" title="Anular Factura" class="btn"
+                                    style="padding: 4px 8px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444;">
+                                    <i data-lucide="slash" style="width: 14px; height: 14px;"></i>
+                                    Anular
+                                </button>
+                                {% endif %}
+                                {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if has_more %}
+    <div style="display: flex; justify-content: center; margin-top: 24px; margin-bottom: 24px;">
+        <a href="/audits-view?q={{ q }}&tab={{ tab }}&limit={{ limit + 25 }}" class="btn btn-secondary"
+            style="padding: 12px 24px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: transform var(--transition-fast);">
+            <i data-lucide="chevrons-down" style="width: 18px; height: 18px; color: var(--primary);"></i>
+            Cargar más movimientos (+25)
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
