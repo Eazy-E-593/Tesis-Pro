@@ -198,7 +198,7 @@
                         </td>
                         <td style="text-align: center;">
                             <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
-                                {% if a.details %}
+                                {% if a.details and (a.details.type == 'Venta' or a.details.type == 'Compra') %}
                                 <button onclick="openTicketModal('{{ a.id }}')" title="Imprimir Ticket"
                                     style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;">
                                     <i data-lucide="printer"

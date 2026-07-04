@@ -563,6 +563,29 @@ def api_add_record(table_id: int, record: schemas.AppRecordCreate, request: Requ
     db.add(db_record)
     db.commit()
     db.refresh(db_record)
+
+    # Audit trail
+    db_table = db.query(models.AppTable).filter(models.AppTable.id == table_id).first()
+    table_name = db_table.name if db_table else "Tabla"
+    record_identifier = (
+        data_copy.get("Nombre") or 
+        data_copy.get("COD") or 
+        data_copy.get("ID") or 
+        f"Registro #{db_record.id}"
+    )
+    action_str = f"Creación | {table_name}: {record_identifier}"
+    
+    audit = models.AppAudit(
+        business_id=user.business_id,
+        table_id=table_id,
+        record_id=db_record.id,
+        employee_code=user.employee_code,
+        action=action_str,
+        details={"new_data": data_copy}
+    )
+    db.add(audit)
+    db.commit()
+
     return db_record
 
 @app.delete("/records/{record_id}", tags=["records"])
@@ -572,6 +595,28 @@ def api_delete_record(record_id: int, request: Request, db: Session = Depends(da
         raise HTTPException(status_code=403, detail="Permisos insuficientes para eliminar registros")
     db_record = db.query(models.AppRecord).filter(models.AppRecord.id == record_id).first()
     if db_record:
+        # Audit trail
+        db_table = db.query(models.AppTable).filter(models.AppTable.id == db_record.table_id).first()
+        table_name = db_table.name if db_table else "Tabla"
+        record_data = dict(db_record.data) if db_record.data else {}
+        record_identifier = (
+            record_data.get("Nombre") or 
+            record_data.get("COD") or 
+            record_data.get("ID") or 
+            f"Registro #{db_record.id}"
+        )
+        action_str = f"Eliminación | {table_name}: {record_identifier}"
+        
+        audit = models.AppAudit(
+            business_id=user.business_id,
+            table_id=db_record.table_id,
+            record_id=None,  # record_id a None para evitar eliminación por cascada (CASCADE) en base de datos al borrar el registro
+            employee_code=user.employee_code,
+            action=action_str,
+            details={"deleted_data": record_data}
+        )
+        db.add(audit)
+        
         db.delete(db_record)
         db.commit()
         return {"ok": True}
@@ -586,16 +631,41 @@ def api_update_record(record_id: int, record: schemas.AppRecordCreate, request: 
     db_record = db.query(models.AppRecord).filter(models.AppRecord.id == record_id).first()
     if not db_record:
         raise HTTPException(status_code=404, detail="Record not found")
+    
+    old_data = dict(db_record.data) if db_record.data else {}
+    new_data = dict(record.data) if record.data else {}
+    
     db_record.data = record.data
     flag_modified(db_record, "data")
     
     # Audit trail
+    db_table = db.query(models.AppTable).filter(models.AppTable.id == db_record.table_id).first()
+    table_name = db_table.name if db_table else "Tabla"
+    record_identifier = (
+        new_data.get("Nombre") or 
+        new_data.get("COD") or 
+        new_data.get("ID") or 
+        old_data.get("Nombre") or 
+        old_data.get("COD") or 
+        f"Registro #{db_record.id}"
+    )
+    
+    changes = []
+    for key, new_val in new_data.items():
+        old_val = old_data.get(key)
+        if old_val != new_val:
+            changes.append(f"{key}: {old_val} -> {new_val}")
+            
+    changes_str = ", ".join(changes) if changes else "sin cambios"
+    action_str = f"Edición | {table_name}: {record_identifier} | Cambios: {changes_str}"
+    
     audit = models.AppAudit(
         business_id=user.business_id,
         table_id=db_record.table_id,
         record_id=db_record.id,
         employee_code=user.employee_code,
-        action="Updated record"
+        action=action_str,
+        details={"old_data": old_data, "new_data": new_data, "changes": changes}
     )
     db.add(audit)
     
