@@ -2,38 +2,35 @@ const templatesConfig = {
     'restaurant': {
         title: 'Restaurante / Comida',
         tables: [
+            { icon: 'package', name: 'Inventario', desc: 'Materia prima e ingredientes.', cols: ['Nombre', 'Marca', 'COD', 'Unidad de Venta', 'Precio por Unidad', 'Cantidad'] },
             { icon: 'users', name: 'Clientes', desc: 'Directorio de clientes frecuentes.', cols: ['Nombre', 'Teléfono', 'Correo', 'Frecuencia'] },
             { icon: 'truck', name: 'Proveedores', desc: 'Suministradores de insumos.', cols: ['Empresa', 'Contacto', 'Producto', 'Pago'] },
-            { icon: 'package', name: 'Inventario', desc: 'Materia prima e ingredientes.', cols: ['Producto', 'Stock', 'Mínimo', 'Unidad'] },
-            { icon: 'scroll-text', name: 'Menú', desc: 'Catálogo de platillos y precios.', cols: ['Nombre', 'Descripción', 'Precio', 'Categoría'] },
-            { icon: 'receipt', name: 'Pedidos (Ventas)', desc: 'Registro de consumos.', cols: ['Mesa', 'Cliente', 'Items', 'Total', 'Estado'] }
+            { icon: 'scroll-text', name: 'Menú', desc: 'Catálogo de platillos y precios.', cols: ['Nombre', 'Descripción', 'Precio', 'Categoría'] }
         ]
     },
     'store': {
         title: 'Tienda / Minimarket',
         tables: [
+            { icon: 'package', name: 'Inventario', desc: 'Catálogo de productos para venta.', cols: ['Nombre', 'Marca', 'COD', 'Unidad de Venta', 'Precio por Unidad', 'Cantidad'] },
             { icon: 'users', name: 'Clientes', desc: 'Compradores registrados y fidelización.', cols: ['Nombre', 'WhatsApp', 'Puntos', 'Última Compra'] },
-            { icon: 'truck', name: 'Proveedores', desc: 'Distribuidores de mercancía.', cols: ['Nombre', 'RUC', 'Teléfono', 'Crédito'] },
-            { icon: 'package', name: 'Inventario', desc: 'Catálogo de productos para venta.', cols: ['Producto', 'Código', 'Stock', 'P. Venta'] },
-            { icon: 'shopping-cart', name: 'Ventas', desc: 'Registro de transacciones diarias.', cols: ['Cajero', 'Cliente', 'Met. Pago', 'Total'] }
+            { icon: 'truck', name: 'Proveedores', desc: 'Distribuidores de mercancía.', cols: ['Nombre', 'RUC', 'Teléfono', 'Crédito'] }
         ]
     },
     'gym': {
         title: 'Gimnasio / Centro Fitness',
         tables: [
+            { icon: 'package', name: 'Inventario', desc: 'Gestión de existencias.', cols: ['Nombre', 'Marca', 'COD', 'Unidad de Venta', 'Precio por Unidad', 'Cantidad'] },
             { icon: 'users', name: 'Socios (Clientes)', desc: 'Miembros activos del gimnasio.', cols: ['Socio', 'DNI', 'Teléfono', 'Edad'] },
             { icon: 'truck', name: 'Proveedores', desc: 'Suministros y mantenimiento.', cols: ['Empresa', 'Servicio', 'Contacto'] },
-            { icon: 'credit-card', name: 'Planes', desc: 'Membresías (Mensual, Anual, etc).', cols: ['Plan', 'Costo', 'Días', 'Acceso'] },
-            { icon: 'clipboard-check', name: 'Suscripciones (Ventas)', desc: 'Registro de pagos de planes.', cols: ['Socio', 'Plan', 'Inicio', 'Vence', 'Monto'] }
+            { icon: 'credit-card', name: 'Planes', desc: 'Membresías (Mensual, Anual, etc).', cols: ['Plan', 'Costo', 'Días', 'Acceso'] }
         ]
     },
     'liquor': {
         title: 'Licorería / Bar',
         tables: [
+            { icon: 'package', name: 'Inventario', desc: 'Catálogo de bebidas y stock.', cols: ['Nombre', 'Marca', 'COD', 'Unidad de Venta', 'Precio por Unidad', 'Cantidad'] },
             { icon: 'users', name: 'Clientes', desc: 'Compradores frecuentes.', cols: ['Nombre', 'Edad', 'WhatsApp'] },
-            { icon: 'truck', name: 'Proveedores', desc: 'Distribuidores de licores.', cols: ['Marca', 'Proveedor', 'Pedido Mín.'] },
-            { icon: 'package', name: 'Inventario', desc: 'Catálogo de bebidas y stock.', cols: ['Marca', 'Tipo', 'Grado', 'Stock', 'P. Venta'] },
-            { icon: 'glass-water', name: 'Ventas', desc: 'Transacciones y despachos.', cols: ['Vendedor', 'Items', 'Subtotal', 'Total'] }
+            { icon: 'truck', name: 'Proveedores', desc: 'Distribuidores de licores.', cols: ['Marca', 'Proveedor', 'Pedido Mín.'] }
         ]
     }
 };

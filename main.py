@@ -34,6 +34,9 @@ def send_status_email(to_email: str, name: str, status: str):
     elif status == "deleted":
         subject = "Tu cuenta ha sido eliminada - MicroBase No-Code"
         body = f"Hola {name},\n\nTe informamos que tu cuenta ha sido eliminada del sistema por el administrador.\n\nSaludos,\nEl equipo de MicroBase No-Code"
+    elif status == "business_created":
+        subject = "¡Bienvenido! Tu Negocio ha sido Creado - MicroBase No-Code"
+        body = f"Hola {name},\n\n¡Felicidades! Tu negocio ha sido creado exitosamente en MicroBase No-Code.\nYa puedes iniciar sesión en el sistema para comenzar a administrarlo.\n\nSaludos,\nEl equipo de MicroBase No-Code"
     
     msg = MIMEMultipart()
     msg['From'] = smtp_user
@@ -330,6 +333,9 @@ def api_register(payload: schemas.UserRegister, request: Request, response: Resp
         # Initialize default tables for this new business
         init_db(db, new_business.id)
         
+        # Enviar correo de creación de negocio
+        send_status_email(new_user.email, new_user.full_name, "business_created")
+        
         # Login automatically since they are the owner
         response.set_cookie(key="auth_token", value=new_user.email, httponly=True)
         return new_user
@@ -400,6 +406,19 @@ def api_create_table_full(payload: schemas.AppTableCreateFull, request: Request,
     if not user or user.role not in ["admin", "manager"]:
         raise HTTPException(status_code=403, detail="No tienes permisos para crear tablas.")
     
+    # Auto-generar columnas requeridas si es Inventario manual
+    if "inventario" in payload.name.lower():
+        existing_names = [f.name.upper() for f in payload.fields]
+        required_fields = [
+            ("Nombre", "text"),
+            ("COD", "text"),
+            ("Precio por Unidad", "number_decimal"),
+            ("Cantidad", "number_int")
+        ]
+        for r_name, r_type in required_fields:
+            if r_name.upper() not in existing_names:
+                payload.fields.append(schemas.AppFieldCreateFull(name=r_name, field_type=r_type))
+
     # Crear la tabla ligada al negocio
     new_table = models.AppTable(name=payload.name, description=payload.description, business_id=user.business_id)
     db.add(new_table)
@@ -410,7 +429,7 @@ def api_create_table_full(payload: schemas.AppTableCreateFull, request: Request,
     auto_fields = []
     normal_fields = []
     for field in payload.fields:
-        if field.name.upper() in ["COD", "ID"]:
+        if field.name.upper() in ["COD", "ID", "CÓDIGO"]:
             auto_fields.append(field)
         else:
             normal_fields.append(field)
@@ -567,8 +586,9 @@ def api_update_record(record_id: int, record: schemas.AppRecordCreate, request: 
     db_record = db.query(models.AppRecord).filter(models.AppRecord.id == record_id).first()
     if not db_record:
         raise HTTPException(status_code=404, detail="Record not found")
-    
     db_record.data = record.data
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(db_record, "data")
     
     # Audit trail
     audit = models.AppAudit(
@@ -1076,6 +1096,18 @@ def setup_business_template(db: Session, business_id: int, template: str):
     if template == "restaurant":
         tables_to_create = [
             {
+                "name": "Inventario",
+                "description": "Gestión de existencias",
+                "fields": [
+                    {"name": "Nombre", "type": "text"},
+                    {"name": "Marca", "type": "text"},
+                    {"name": "COD", "type": "text"},
+                    {"name": "Unidad de Venta", "type": "text"},
+                    {"name": "Precio por Unidad", "type": "number_decimal"},
+                    {"name": "Cantidad", "type": "number_int"}
+                ]
+            },
+            {
                 "name": "Menú",
                 "description": "Catálogo de platillos y precios",
                 "fields": [
@@ -1084,34 +1116,37 @@ def setup_business_template(db: Session, business_id: int, template: str):
                     {"name": "Precio", "type": "number_decimal"},
                     {"name": "Categoría", "type": "select", "options": "Entradas, Fuertes, Postres, Bebidas, Otros"}
                 ]
-            },
-            {
-                "name": "Pedidos (Ventas)",
-                "description": "Registro de consumos",
-                "fields": [
-                    {"name": "Mesa", "type": "text"},
-                    {"name": "Cliente", "type": "text"},
-                    {"name": "Items", "type": "text"},
-                    {"name": "Total", "type": "number_decimal"},
-                    {"name": "Estado", "type": "select", "options": "Pendiente, Preparando, Entregado, Pagado"}
-                ]
             }
         ]
     elif template == "store":
         tables_to_create = [
             {
-                "name": "Ventas del POS",
-                "description": "Registro de transacciones diarias",
+                "name": "Inventario",
+                "description": "Gestión de existencias",
                 "fields": [
-                    {"name": "Cajero", "type": "text"},
-                    {"name": "Cliente", "type": "text"},
-                    {"name": "Met. Pago", "type": "select", "options": "Efectivo, Tarjeta, Transferencia"},
-                    {"name": "Total", "type": "number_decimal"}
+                    {"name": "Nombre", "type": "text"},
+                    {"name": "Marca", "type": "text"},
+                    {"name": "COD", "type": "text"},
+                    {"name": "Unidad de Venta", "type": "text"},
+                    {"name": "Precio por Unidad", "type": "number_decimal"},
+                    {"name": "Cantidad", "type": "number_int"}
                 ]
             }
         ]
     elif template == "gym":
         tables_to_create = [
+            {
+                "name": "Inventario",
+                "description": "Gestión de existencias",
+                "fields": [
+                    {"name": "Nombre", "type": "text"},
+                    {"name": "Marca", "type": "text"},
+                    {"name": "COD", "type": "text"},
+                    {"name": "Unidad de Venta", "type": "text"},
+                    {"name": "Precio por Unidad", "type": "number_decimal"},
+                    {"name": "Cantidad", "type": "number_int"}
+                ]
+            },
             {
                 "name": "Planes",
                 "description": "Membresías del gimnasio",
@@ -1121,29 +1156,20 @@ def setup_business_template(db: Session, business_id: int, template: str):
                     {"name": "Días", "type": "number_int"},
                     {"name": "Acceso", "type": "select", "options": "Pase Diario, Pase Mensual, Full Access"}
                 ]
-            },
-            {
-                "name": "Suscripciones (Ventas)",
-                "description": "Registro de pagos de planes",
-                "fields": [
-                    {"name": "Socio", "type": "text"},
-                    {"name": "Plan", "type": "text"},
-                    {"name": "Inicio", "type": "date"},
-                    {"name": "Vence", "type": "date"},
-                    {"name": "Monto", "type": "number_decimal"}
-                ]
             }
         ]
     elif template == "liquor":
         tables_to_create = [
             {
-                "name": "Ventas del POS",
-                "description": "Transacciones y despachos",
+                "name": "Inventario",
+                "description": "Gestión de existencias",
                 "fields": [
-                    {"name": "Vendedor", "type": "text"},
-                    {"name": "Items", "type": "text"},
-                    {"name": "Subtotal", "type": "number_decimal"},
-                    {"name": "Total", "type": "number_decimal"}
+                    {"name": "Nombre", "type": "text"},
+                    {"name": "Marca", "type": "text"},
+                    {"name": "COD", "type": "text"},
+                    {"name": "Unidad de Venta", "type": "text"},
+                    {"name": "Precio por Unidad", "type": "number_decimal"},
+                    {"name": "Cantidad", "type": "number_int"}
                 ]
             }
         ]
@@ -1156,7 +1182,16 @@ def setup_business_template(db: Session, business_id: int, template: str):
             db.commit()
             db.refresh(new_table)
             
-            for idx, f in enumerate(t_info["fields"]):
+            auto_fields = []
+            normal_fields = []
+            for f in t_info["fields"]:
+                if f["name"].upper() in ["COD", "ID", "CÓDIGO"]:
+                    auto_fields.append(f)
+                else:
+                    normal_fields.append(f)
+            reordered_fields = auto_fields + normal_fields
+            
+            for idx, f in enumerate(reordered_fields):
                 db_field = models.AppField(
                     table_id=new_table.id,
                     name=f["name"],

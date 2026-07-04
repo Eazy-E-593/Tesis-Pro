@@ -109,24 +109,32 @@ function renderTable(fields, records) {
     // Render Body
     tbody.innerHTML = '';
     records.forEach(record => {
+        let dataObj = record.data || {};
+        const AUTO_FIELDS = ['COD', 'ID'];
+        // Determinar si el registro está vacío (nueva fila)
+        let isNewRow = false;
+        if (dataObj) {
+            isNewRow = !fields.some(f => {
+                if (AUTO_FIELDS.includes(f.name.toUpperCase())) return false;
+                let val = dataObj[f.name];
+                return val !== "" && val !== null && val !== undefined;
+            });
+        }
+
         let tr = document.createElement('tr');
         tr.dataset.recordId = record.id;
-
-        // Ensure data is parsed if needed
-        let dataObj = record.data || {};
-        // Exclude auto-generated fields (COD, ID) from the "new row" detection
-        const AUTO_FIELDS = ['COD', 'ID'];
-        let isNewRow = !fields.some(f => !AUTO_FIELDS.includes(f.name.toUpperCase()) && dataObj[f.name] !== "" && dataObj[f.name] !== undefined);
         tr.dataset.isNewRow = isNewRow;
 
         fields.forEach(field => {
-            let td = document.createElement('td');
-            let val = dataObj[field.name] || '';
+            let val = dataObj[field.name];
+            // En caso de que venga como null del backend
+            if (val === null || val === undefined) val = "";
 
-            // Render basic input for inline editing
+            let td = document.createElement('td');
+            
             let isSku = field.name.toUpperCase() === 'COD';
             let isAutoId = field.name.toUpperCase() === 'ID';
-            // Los campos auto-generados siempre son texto (el browser ignora strings en type="number")
+
             let inputType = (isSku || isAutoId) ? 'text'
                 : (field.field_type.startsWith('number') || field.field_type === 'number') ? 'number'
                     : field.field_type === 'date' ? 'date'
@@ -134,54 +142,52 @@ function renderTable(fields, records) {
 
             let inputContainer = document.createElement('div');
             inputContainer.style.position = 'relative';
+            inputContainer.style.display = 'flex';
+            inputContainer.style.alignItems = 'center';
+            inputContainer.style.width = '100%';
+            inputContainer.style.transition = 'opacity 0.3s';
 
             let input;
 
-            if (field.field_type === 'select') {
+            if (field.options && field.field_type === 'select') {
                 input = document.createElement('select');
-                input.className = 'cell-input input-neumorphic';
-                // Añadir una opción vacía por defecto
+                input.className = 'cell-input';
+                
                 let defaultOpt = document.createElement('option');
-                defaultOpt.value = "";
-                defaultOpt.textContent = "Seleccione...";
-                if (!val) defaultOpt.selected = true;
+                defaultOpt.value = '';
+                defaultOpt.textContent = 'Seleccione...';
                 input.appendChild(defaultOpt);
 
-                if (field.options) {
-                    let opts = field.options.split(',');
-                    opts.forEach(opt => {
-                        let option = document.createElement('option');
-                        let trimOpt = opt.trim();
-                        option.value = trimOpt;
-                        option.textContent = trimOpt;
-                        if (val === trimOpt) option.selected = true;
-                        input.appendChild(option);
-                    });
-                }
-
-                if (!isNewRow) {
-                    input.disabled = true; // select usa disabled, no readOnly
-                    input.classList.add('locked-input');
-                }
-            } else {
-                input = document.createElement('input');
-                input.type = inputType;
-                if (inputType === 'number') {
-                    if (field.field_type === 'number_int') {
-                        input.step = "1";
-                    } else {
-                        input.step = "any";
-                    }
-                }
-                input.value = val;
-                input.className = 'cell-input';
+                let opts = field.options.split(',').map(o => o.trim());
+                opts.forEach(o => {
+                    let opt = document.createElement('option');
+                    opt.value = o;
+                    opt.textContent = o;
+                    if (val === o) opt.selected = true;
+                    input.appendChild(opt);
+                });
+                
                 if (isSku || isAutoId) {
                     input.readOnly = true;
                     input.title = "Generado automáticamente";
                     input.classList.add('locked-input');
-                    input.style.cursor = 'default';
-                    input.style.color = 'var(--text-muted)';
-                    input.style.fontStyle = 'italic';
+                    // Select no tiene readOnly, se simula con pointer-events
+                    input.style.pointerEvents = 'none';
+                } else {
+                    if (!isNewRow) {
+                        input.disabled = true; // Para select se usa disabled
+                        input.classList.add('locked-input');
+                    }
+                }
+            } else {
+                input = document.createElement('input');
+                input.type = inputType;
+                input.className = 'cell-input';
+
+                if (isSku || isAutoId) {
+                    input.readOnly = true;
+                    input.title = "Generado automáticamente";
+                    input.classList.add('locked-input');
                 } else {
                     if (!isNewRow) {
                         input.readOnly = true;
@@ -199,119 +205,133 @@ function renderTable(fields, records) {
 
                     let datalist = document.createElement('datalist');
                     datalist.id = datalistId;
-                    let opts = field.options.split(',');
-                    opts.forEach(opt => {
-                        let option = document.createElement('option');
-                        option.value = opt.trim();
-                        datalist.appendChild(option);
+                    let opts = field.options.split(',').map(o => o.trim());
+                    opts.forEach(o => {
+                        let opt = document.createElement('option');
+                        opt.value = o;
+                        datalist.appendChild(opt);
                     });
-                    inputContainer.appendChild(datalist);
+                    td.appendChild(datalist);
                 }
+
+                // Empty state UX
+                if (!val && !isSku && !isAutoId && input.tagName !== 'SELECT') {
+                    input.classList.add('empty-cell');
+                    let placeholder = document.createElement('span');
+                    placeholder.className = 'empty-placeholder';
+                    placeholder.innerHTML = '⚠️ Vacío';
+                    inputContainer.appendChild(placeholder);
+
+                    input.addEventListener('focus', () => {
+                        placeholder.style.display = 'none';
+                        input.classList.remove('empty-cell');
+                    });
+                    input.addEventListener('blur', () => {
+                        if (!input.value) {
+                            placeholder.style.display = 'flex';
+                            input.classList.add('empty-cell');
+                        }
+                    });
+                }
+
+                input.value = val;
             }
 
-            // Empty state UX
-            if (!val && !isSku && !isAutoId && input.tagName !== 'SELECT') {
-                input.classList.add('empty-cell');
-                let placeholder = document.createElement('span');
-                placeholder.className = 'empty-placeholder';
-                placeholder.innerHTML = '⚠️ Vacío';
-                inputContainer.appendChild(placeholder);
+            input.dataset.fieldId = field.id;
+            input.dataset.fieldName = field.name;
 
-                input.addEventListener('focus', () => {
-                    placeholder.style.display = 'none';
-                    input.classList.remove('empty-cell');
-                });
-                input.addEventListener('blur', () => {
-                    if (!input.value) {
-                        placeholder.style.display = 'flex';
-                        input.classList.add('empty-cell');
+            // Escuchar input para lógica progresiva y guardado rápido
+            if (!input.readOnly) {
+                input.addEventListener('input', () => updateRowProgressive(tr));
+                
+                // Enter para guardar
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        if (tr.dataset.isNewRow === 'true') {
+                            saveRow(record.id);
+                        } else {
+                            quickSaveRow(record.id);
+                        }
                     }
                 });
             }
-
-            // Removed save on blur for explicit save button experience
-            // Or save on enter
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.target.blur();
-                    saveRow(record.id);
-                }
-            });
-
-            // Progressive Disclosure Logic
-            input.addEventListener('input', () => updateRowProgressive(tr));
 
             inputContainer.appendChild(input);
             td.appendChild(inputContainer);
             tr.appendChild(td);
         });
 
-        // Action td
-        let actionTd = document.createElement('td');
-        actionTd.style.whiteSpace = 'nowrap';
+        // Acción
+        let tdAction = document.createElement('td');
+        tdAction.style.whiteSpace = 'nowrap';
+        
+        // Solo mostrar controles a admin o manager
         let role = typeof currentUserRole !== 'undefined' ? currentUserRole : 'empleado';
-        let deleteRowHtml = '';
         if (['admin', 'manager'].includes(role)) {
-            deleteRowHtml = `<button class="delete-row-btn admin-edit-element" onclick="deleteRow(${record.id})" title="Eliminar Fila"><i data-lucide="trash-2"></i></button>`;
-        }
-
-        let actionBtnHtml = `
-            <button class="btn btn-primary action-btn save-btn admin-edit-element" onclick="saveRow(${record.id})" style="padding: 6px 12px; margin-right: 8px; font-size: 0.8rem;" title="Guardar Fila">
-                <i data-lucide="save" style="width: 14px;"></i> Guardar
-            </button>
-        `;
-        if (!isNewRow) {
-            actionBtnHtml = `
-                <button class="btn btn-secondary action-btn edit-btn admin-edit-element" onclick="enableEditRow(${record.id}, this)" style="padding: 6px 12px; margin-right: 8px; font-size: 0.8rem;" title="Editar Fila">
-                    <i data-lucide="edit" style="width: 14px;"></i> Editar
+            let actionBtnHtml = `
+                <button class="btn btn-primary action-btn save-btn admin-edit-element" onclick="saveRow(${record.id})" style="padding: 6px 12px; margin-right: 8px; font-size: 0.8rem;" title="Guardar Fila">
+                    <i data-lucide="save" style="width: 14px;"></i> Guardar
                 </button>
             `;
+            
+            if (!isNewRow) {
+                actionBtnHtml = `
+                    <button class="btn action-btn edit-btn admin-edit-element" onclick="enableEditRow(${record.id}, this)" style="padding: 6px 12px; background: rgba(59, 130, 246, 0.1); color: var(--primary); margin-right: 8px; font-size: 0.8rem;" title="Editar Fila">
+                        <i data-lucide="edit-2" style="width: 14px;"></i> Editar
+                    </button>
+                    <button class="btn action-btn delete-btn admin-edit-element" onclick="deleteRow(${record.id})" style="padding: 6px 12px; background: rgba(239, 68, 68, 0.1); color: var(--danger); font-size: 0.8rem;" title="Eliminar Fila">
+                        <i data-lucide="trash-2" style="width: 14px;"></i>
+                    </button>
+                `;
+            } else {
+                actionBtnHtml += `
+                    <button class="btn action-btn delete-btn admin-edit-element" onclick="deleteRow(${record.id})" style="padding: 6px 12px; background: rgba(239, 68, 68, 0.1); color: var(--danger); font-size: 0.8rem;" title="Cancelar">
+                        <i data-lucide="x" style="width: 14px;"></i>
+                    </button>
+                `;
+            }
+            tdAction.innerHTML = actionBtnHtml;
         }
-
-        actionTd.innerHTML = `
-            ${actionBtnHtml}
-            ${deleteRowHtml}
-        `;
-        tr.appendChild(actionTd);
-
+        
+        tr.appendChild(tdAction);
         tbody.appendChild(tr);
 
-        // Initial run to lock upcoming empty cells
-        updateRowProgressive(tr);
+        // Si es nueva fila, enfocar el primer input progresivamente
+        if (isNewRow) {
+            setTimeout(() => updateRowProgressive(tr), 50);
+        }
     });
 
     lucide.createIcons();
 }
 
+// Lógica de llenado progresivo (UX gamificada)
 function updateRowProgressive(tr) {
-    // Solo aplicar lógica progresiva a filas que están vacías (nuevas)
-    // Si la fila ya tiene datos, no queremos ocultar nada aunque se añada una columna vacía
     if (tr.dataset.isNewRow !== 'true') return;
 
     let allInputs = tr.querySelectorAll('.cell-input');
     let previousFilled = true;
-
+    
     allInputs.forEach(input => {
-        if (input.title === "Generado automáticamente") return; // Ignorar campos auto-generados (COD, ID)
+        if (input.title === "Generado automáticamente" || input.readOnly) return; // Ignorar campos auto-generados o bloqueados
 
         let container = input.parentElement;
         let placeholder = container.querySelector('.empty-placeholder');
 
         if (!previousFilled) {
             input.disabled = true;
-            input.style.opacity = '0'; // Totalmente invisible hasta que le toque
-            container.style.opacity = '0.3';
+            container.style.opacity = '0.5';
+            input.style.cursor = 'not-allowed';
             if (placeholder) placeholder.style.display = 'none';
         } else {
             input.disabled = false;
-            input.style.opacity = '1';
             container.style.opacity = '1';
-
+            input.style.cursor = 'text';
             if (input.value.trim() === '') {
-                previousFilled = false; // La cadena se rompe aquí
                 if (placeholder && document.activeElement !== input) {
                     placeholder.style.display = 'flex';
                 }
+                previousFilled = false;
             } else {
                 if (placeholder) placeholder.style.display = 'none';
             }
